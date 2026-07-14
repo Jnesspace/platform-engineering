@@ -29,6 +29,18 @@ locals {
 }
 
 # --- 1. Spaces -------------------------------------------------------------
+# inherit_entities = false on both: these Spaces do NOT inherit parent/root
+# contexts, policies, or integrations — the tighter, no-leakage default. It is
+# set HERE, at creation, on purpose: disabling inheritance is a ROOT-ADMIN-only
+# operation ("only root admins can disable inheritance"), and this bootstrap is
+# the root-admin step. The non-root engine could never do it.
+#
+# Consequence: anything a stack in these Spaces needs — a non-default AWS/VCS
+# integration, a shared context — must be attached DIRECTLY to that Space/stack
+# by the platform admin, because nothing flows down from root and the engine
+# (scoped to the team Space) cannot reach root-level integrations. The demo's
+# app-example needs none, so nothing extra is required here; add per-Space
+# attachments when real downstream workloads need cloud credentials.
 resource "spacelift_space" "platform" {
   name             = var.platform_space_name
   parent_space_id  = "root"

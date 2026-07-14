@@ -97,6 +97,12 @@ sequenceDiagram
 - **What can a run do at most?** Space-admin inside the one team Space the
   binding is scoped to. It cannot touch `root`, sibling teams, or the
   `platform` Space itself.
+- **Can a Space see its neighbors' or root's secrets?** No. Both Spaces are
+  created with `inherit_entities = false`, so no parent/root context,
+  integration, or policy leaks in. Because nothing is inherited, the platform
+  admin attaches what each Space needs directly (disabling inheritance is a
+  root-only op, so it's done in the bootstrap — the non-root engine can't reach
+  root-level integrations anyway).
 
 ## Current status (PoC)
 
