@@ -86,15 +86,28 @@ flowchart LR
 ```
 patterns/
 ├─ iam-factory/              # code the factory stack runs (catalog, services/, gate, roles)
-└─ nonadmin-launcher/
-   ├─ README.md              # the pattern, end to end
-   └─ engine/                # code the engine stack runs (requests/ shopping list + app-example/)
+├─ nonadmin-launcher/
+│  ├─ README.md              # the pattern, end to end
+│  └─ engine/                # code the engine stack runs (requests/ shopping list + app-example/)
+└─ app-factory/              # shopping-list engine: platform.yaml -> modules + ONE app IAM role
+modules/
+└─ {aws,azure,gcp}/{object-storage,database,secrets,compute}/   # dual-purpose wrappers (uniform id/name/endpoint/access; AWS adds iam_policy_json)
+blueprints/
+└─ object-storage.yaml       # Spacelift Blueprint: same module, filled via a form (ticketing path)
+examples/
+└─ jimmy-app/                # what an app repo ships: Dockerfile + platform.yaml shopping list
 bootstrap/
+├─ iam-factory/              # root-admin, one-time: platform-admin Space + factory stack + role binding + integration
 └─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, the role binding, team role
 docs/
 ├─ nonadmin-launcher-privilege-memo.md   # design memo: why the binding, verified against the API
 └─ hardening-backlog.md      # deferred security items — READ THIS
 ```
+
+**Where the new pieces sit on the ladder:** `patterns/app-factory/` is rung 4
+(converged onboarding — one `platform.yaml` vends an app's resources plus its
+scoped IAM role), and `modules/` + `blueprints/` serve rung 5 (golden path /
+ticketing — the same modules, filled via a Blueprint form instead of code).
 
 **Who owns what:** the platform team owns `bootstrap/` and `patterns/`;
 product teams only trigger.

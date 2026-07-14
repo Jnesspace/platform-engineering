@@ -1,0 +1,52 @@
+# Spacelift Blueprint: the non-developer / ticketing path for object storage.
+# Same module the app-factory shopping list uses (modules/aws/object-storage) —
+# here its inputs are filled via a form instead of a platform.yaml.
+#
+# Note: in Spacelift the blueprint's name/description are set on the Blueprint
+# entity; they are duplicated here so the file is self-describing.
+name: object-storage
+description: >-
+  Request an S3 bucket (versioned, all public access blocked) without writing
+  Terraform. Creates a stack whose root is modules/aws/object-storage, with the
+  form inputs passed as TF_VAR_* — the exact module app-factory composes.
+
+inputs:
+  - id: bucket_name
+    name: Bucket name
+    description: Globally unique, lowercase letters/digits/hyphens (e.g. acme-billing-uploads).
+    type: short_text
+  - id: team
+    name: Owning team
+    description: Used for the stack description and the bucket's team tag.
+    type: short_text
+  - id: force_destroy
+    name: Allow destroy while objects remain (throwaway environments only)
+    type: boolean
+    default: false
+
+stack:
+  name: object-storage-${{ inputs.bucket_name }}
+  space: root
+  description: S3 bucket ${{ inputs.bucket_name }}, requested via Blueprint by ${{ inputs.team }}.
+  labels:
+    - blueprint
+    - object-storage
+  administrative: false
+  auto_deploy: false
+  vcs:
+    provider: GITHUB
+    repository: platform-engineering
+    branch: main
+    project_root: modules/aws/object-storage
+  environment:
+    variables:
+      - name: TF_VAR_name
+        value: ${{ inputs.bucket_name }}
+      - name: TF_VAR_force_destroy
+        value: ${{ inputs.force_destroy }}
+      - name: TF_VAR_tags
+        value: '{ team = "${{ inputs.team }}", managed_by = "blueprint" }'
+  vendor:
+    terraform:
+      manage_state: true
+      version: "1.5.7"

@@ -1,0 +1,18 @@
+# The shopping list: everything jimmy-app needs from the platform, in one file
+# the developer owns. Consumed by patterns/app-factory (rung 4 — converged
+# onboarding). Keys under `resources:` map 1:1 to modules/<cloud>/<primitive>.
+name: jimmy-app
+cloud: aws
+resources:
+  object_storage:
+    - name: uploads
+  secrets:
+    - name: app-secrets
+  # database and compute are supported too (modules/<cloud>/{database,compute}).
+  # Omitted from the live demo so the run stays to fast, ~free resources
+  # (S3 + Secrets Manager + IAM); RDS/EC2 cost money and take minutes to create.
+  # database:
+  #   - name: app
+  #     engine: postgres   # the database module is postgres-only
+  # compute:
+  #   - name: worker
