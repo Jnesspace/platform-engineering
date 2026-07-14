@@ -11,10 +11,9 @@
 # Teams only ever supply inputs and trigger runs (RUN_TRIGGER); they never edit
 # this admin-owned code and never hold Space Admin.
 #
-# The "shopping list" is currently a plain `list(string)` variable
-# (var.app_stacks) fed in by the bootstrap — honest limitation of the PoC. A
-# git-tracked YAML shopping list (like iam-factory's services/) is the
-# documented next step; either way teams supply DATA only, never code.
+# The "shopping list" is git-tracked YAML: one file per app stack under
+# requests/. Teams add a file and open a PR — DATA only, never code. The
+# filename (minus .yaml) is the stack slug.
 ##############################################################################
 
 terraform {
@@ -55,30 +54,35 @@ variable "vended_project_root" {
   default     = "patterns/nonadmin-launcher/engine/app-example"
 }
 
-# The "shopping list" — normally sourced from the team's App repo declaration.
-variable "app_stacks" {
-  type        = list(string)
-  description = "App stacks to vend into the team Space."
-  default     = ["app-stack-1", "app-stack-2"]
-
-  validation {
-    condition     = alltrue([for s in var.app_stacks : can(regex("^[a-z0-9-]+$", s))])
-    error_message = "app_stacks names must be lowercase alphanumeric/hyphen."
+locals {
+  # Git-tracked shopping list: one YAML file per requested app stack, under
+  # requests/. The filename (minus .yaml) is the stack slug.
+  request_files = fileset("${path.module}/requests", "*.yaml")
+  app_stacks = {
+    for f in local.request_files :
+    trimsuffix(f, ".yaml") => yamldecode(file("${path.module}/requests/${f}"))
   }
 }
 
 resource "spacelift_stack" "app" {
-  for_each = toset(var.app_stacks)
+  for_each = local.app_stacks
 
-  name                  = each.value
+  name                  = try(each.value.name, each.key)
   space_id              = var.team_space_id
   repository            = var.vended_repository
   branch                = var.vended_branch
-  project_root          = var.vended_project_root
-  description           = "App stack vended into ${var.team_space_id} by the onboarding engine."
+  project_root          = try(each.value.project_root, var.vended_project_root)
+  description           = "App stack '${each.key}' vended into ${var.team_space_id} by the onboarding engine."
   labels                = ["env:d", "vended-by:onboarding-engine"]
   autodeploy            = false
   protect_from_deletion = true
+
+  lifecycle {
+    precondition {
+      condition     = can(regex("^[a-z0-9-]+$", each.key))
+      error_message = "App request slug '${each.key}' must be lowercase alphanumeric/hyphen."
+    }
+  }
 }
 
 output "vended_app_stacks" {

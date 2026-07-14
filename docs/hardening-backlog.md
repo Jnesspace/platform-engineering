@@ -1,10 +1,10 @@
 # Hardening backlog
 
 **This repo is a PoC. It is NOT yet production-safe.** The patterns prove the
-privilege model (stack-bound elevation, catalog-gated roles), but the
-surrounding controls below were deliberately deferred and are required before
-real teams and real credentials touch this. Each item comes from the security
-review of the live PoC.
+privilege model (stack-bound elevation, catalog-gated roles); the controls
+below were deliberately deferred and are required before real teams and real
+credentials touch this. Each item comes from the security review of the live
+PoC.
 
 1. **Protect the tracked git branch (branch protection + CODEOWNERS).**
    The engine executes whatever is on its tracked branch with elevated

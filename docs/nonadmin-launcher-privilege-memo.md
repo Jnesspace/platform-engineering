@@ -42,7 +42,7 @@ One deprecation landmine to raise on the call: **the `administrative` flag was d
 
 ## 1a. Live-schema test results (run against `jnesspace`, 2026-07-13)
 
-These were executed directly against the account's GraphQL API (read-only), and they upgrade several "docs say" claims to "schema confirms."
+Executed read-only against the account's GraphQL API; these upgrade several "docs say" claims to "schema confirms."
 
 **Attach-type actions are non-grantable — confirmed from the `Action` enum.** Every one of these is present in the enum but flagged `"Disabled. Do not use."`, so they cannot be put into a custom role:
 `STACK_ROLE_BINDING_CREATE/UPDATE/DELETE`, `STACK_CONTEXT_ATTACH/DETACH`, `STACK_POLICY_ATTACH/DETACH`, `STACK_AWS_INTEGRATION_ATTACH/DETACH/UPDATE`, `STACK_AZURE_INTEGRATION_*`, `STACK_GCP_INTEGRATION_*`, `STACK_WEBHOOK_*`.
@@ -62,7 +62,7 @@ These were executed directly against the account's GraphQL API (read-only), and 
 
 ## 1b. PoC executed live in `jnesspace` (2026-07-13) — Option A confirmed working
 
-Stood up the full Option A path end-to-end via the API. Result: **an engine stack created stacks inside a product team's Space using nothing but a stack role binding — no `administrative` flag, no API key, no stored secret.**
+The full Option A path, stood up end-to-end via the API. Result: **an engine stack created stacks inside a product team's Space using nothing but a stack role binding — no `administrative` flag, no API key, no stored secret.**
 
 What was built:
 - Space `platform` (`platform-01KXENHABYMGMY2C4VAHHNPFVA`) — governance plane.

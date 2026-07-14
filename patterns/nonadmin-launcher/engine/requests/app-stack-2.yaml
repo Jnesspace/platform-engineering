@@ -1,0 +1,3 @@
+# App-stack request. Add a file like this and open a PR; the onboarding engine
+# vends a stack of this name into the team Space. Filename (minus .yaml) = slug.
+name: app-stack-2

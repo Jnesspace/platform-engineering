@@ -16,9 +16,9 @@ needs to self-serve governed onboarding **without ever holding Space Admin**.
 1. Spaces `platform` (governance) and `cpe-team1` (product team), both under `root`.
 2. Stack `onboarding-engine` in `platform`, tracking this repo's
    `patterns/nonadmin-launcher/engine/`. It does **not** set the legacy
-   `administrative` attribute — that attribute has been removed by the API
-   (disabled June 1, 2026). The stack has no intrinsic privilege at all; the
-   **role binding** below is the sole elevation mechanism.
+   `administrative` attribute — the API removed it (disabled June 1, 2026).
+   The stack has no intrinsic privilege at all; the **role binding** below is
+   the sole elevation mechanism.
 3. `spacelift_role_attachment` binding the system **Space admin** role
    (resolved by its `space-admin` slug, overridable via
    `var.space_admin_role_id`) to the *engine stack*, scoped to `cpe-team1`.

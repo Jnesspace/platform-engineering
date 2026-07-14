@@ -2,7 +2,7 @@
 
 Governed self-service on Spacelift: the platform team owns the guardrails as
 code, and product teams get real provisioning power through narrow, audited
-entry points — never through admin rights. Every privilege in this repo is
+entry points — never admin rights. Every privilege in this repo is
 attached to a *stack* or minted from a *catalog*; no person on a product team
 holds Space Admin or an IAM credential.
 
@@ -31,6 +31,18 @@ platform team. Runs act with that binding's short-lived injected token,
 independent of who triggered them; the gate is git ownership of the engine
 code plus an explicit confirm step (`autodeploy = false`). Teams hold only
 read + trigger/confirm, stack-scoped to the engine.
+
+```mermaid
+flowchart LR
+    plat[Platform team] -->|owns as code| guard[bootstrap + patterns]
+    team[Product teams] -->|git request or trigger only| guard
+    guard --> factory[iam-factory stack]
+    guard --> engine[nonadmin-launcher engine]
+    factory --> vend[Spaces + scoped IAM roles]
+    engine --> apps[App stacks in team Space]
+```
+
+*One shape, two patterns: the platform team owns the guardrails; product teams hold only a narrow, audited entry point.*
 
 ## Repo map
 

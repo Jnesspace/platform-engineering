@@ -14,13 +14,24 @@ dev adds iam-factory/services/payments.yaml  ─push─▶  factory stack runs  
                                                                               └─ context aws-payments  (auto-attaches to `aws-oidc`-labeled stacks, exports TF_VAR_aws_role_arn)
 ```
 
-A push under `iam-factory/` triggers the stack. Because the stack is **not**
-autodeploy, the run waits for a human to confirm — that confirmation is the
-sign-off gate for every new Space and credential boundary. (Swap in an
-approval policy for a richer gate.)
+A push under `iam-factory/` triggers the stack. Autodeploy is off, so the run
+waits for a human confirm — the sign-off gate for every new Space and
+credential boundary. (Swap in an approval policy for a richer gate.)
 
 Because each role's trust policy pins the OIDC `sub` to `space:<id>:*`, a stack
 in Space A physically cannot assume Space B's role, no matter what ARN it types.
+
+```mermaid
+flowchart TD
+    dev["Developer adds services/payments.yaml"] --> run[Factory stack run]
+    run --> gate{Plan-time catalog gate}
+    gate -->|requests an off-catalog set| fail[Run fails at plan]
+    gate -->|all sets in the catalog| confirm{Human confirm gate}
+    confirm --> mint["Space + scoped IAM role, OIDC-trusted + auto-attached context"]
+    mint --> use[Stack in the new Space assumes the role via OIDC]
+```
+
+*The vend loop: git request, plan-time gate, human sign-off, then Space-pinned credentials.*
 
 ## Shopping-list entry
 
