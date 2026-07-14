@@ -10,10 +10,7 @@ variable "create_oidc_provider" {
   description = "Create the Spacelift OIDC provider in AWS. Set to false to reference an existing one instead."
 }
 
-# Every vended service Space is created as a child of this Space. It MUST be the
-# factory stack's own Space (or an ancestor of it within the factory's admin
-# subtree), otherwise the administrative token can't manage the children.
-# Filled in with the real platform-admin Space ID once that Space exists.
+# Must be the factory stack's own Space (or an ancestor in its admin subtree), or the run token can't manage the vended children.
 variable "parent_space_id" {
   type        = string
   default     = "PLATFORM_ADMIN_SPACE_ID"

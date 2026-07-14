@@ -21,5 +21,5 @@ terraform {
 # AWS creds come from the AWS integration attached to this stack.
 provider "aws" {}
 
-# Spacelift creds are injected automatically because this stack is administrative.
+# Spacelift creds come from the run's injected token (via the stack's role binding).
 provider "spacelift" {}

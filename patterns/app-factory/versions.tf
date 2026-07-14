@@ -6,7 +6,7 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    # The aws/database module generates its master password with random_password.
+    # aws/database generates its master password in-module.
     random = {
       source  = "hashicorp/random"
       version = "~> 3.5"

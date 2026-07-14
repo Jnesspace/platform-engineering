@@ -1,74 +1,39 @@
 # platform-engineering
 
 Governed self-service on Spacelift: the platform team owns the guardrails as
-code, and product teams get real provisioning power through narrow, audited
-entry points — never admin rights. Every privilege in this repo is
-attached to a *stack* or minted from a *catalog*; no person on a product team
-holds Space Admin or an IAM credential.
+code; product teams get real provisioning power through narrow, audited entry
+points — never admin rights or IAM credentials.
 
-> **Status: PoC.** Not yet production-safe — the deferred security work is
-> tracked in **[docs/hardening-backlog.md](docs/hardening-backlog.md)**. Read
-> it before deploying beyond a demo account.
+> **Status: PoC.** Deferred security work is tracked in
+> [docs/hardening-backlog.md](docs/hardening-backlog.md) — read it before
+> deploying beyond a demo account.
 
-## The two patterns
+## Grab what you need
 
-### iam-factory — Space + scoped AWS role vending
-
-One admin stack turns a git-tracked shopping list (`services/*.yaml`) into, per
-service: a Spacelift Space, a per-Space IAM role trusted **only by that
-Space's OIDC `sub`**, and an auto-attached context handing the role ARN to
-labeled stacks. A developer picks permission sets from the platform-owned
-`catalog.yaml`; a **plan-time gate blocks anything off-catalog**, and a
-permissions boundary hard-caps the role at runtime. Per-Space OIDC trust means
-a stack can never assume another Space's role, no matter what ARN it types.
-
-### nonadmin-launcher — self-service provisioning without Space Admin
-
-Product teams trigger an admin-owned **engine stack** that vends app stacks
-into their Space. The elevation is a single object: a Space-admin role binding
-**on the engine stack**, scoped to the team Space — created once by the
-platform team. Runs act with that binding's short-lived injected token,
-independent of who triggered them; the gate is git ownership of the engine
-code plus an explicit confirm step (`autodeploy = false`). Teams hold only
-read + trigger/confirm, stack-scoped to the engine.
-
-```mermaid
-flowchart LR
-    plat[Platform team] -->|owns as code| guard[bootstrap + patterns]
-    team[Product teams] -->|git request or trigger only| guard
-    guard --> factory[iam-factory stack]
-    guard --> engine[nonadmin-launcher engine]
-    factory --> vend[Spaces + scoped IAM roles]
-    engine --> apps[App stacks in team Space]
-```
-
-*One shape, two patterns: the platform team owns the guardrails; product teams hold only a narrow, audited entry point.*
+| Section | What it is / when you'd grab it |
+|---|---|
+| [`patterns/`](patterns/) | The three engines: `iam-factory` (vends Spaces + OIDC-scoped AWS roles from a catalog), `nonadmin-launcher` (admin-owned engine vends app stacks; teams only trigger), `app-factory` (one `platform.yaml` → cloud resources + one least-privilege app role). |
+| [`modules/`](modules/) | Dual-purpose wrappers, `{aws,azure,gcp} × {object-storage,database,secrets,compute}`, with a uniform `id/name/endpoint/access` interface (AWS adds `iam_policy_json`). Grab when composing an engine or a Blueprint. |
+| [`policies/`](policies/) | Centralized policy-as-code: plan, approval, push, login, access, trigger, notification. Grab when enforcing gates server-side instead of in engine code. |
+| [`blueprints/`](blueprints/) | Ticketing / self-service forms: the same modules filled via a Spacelift Blueprint instead of code. |
+| [`roles/`](roles/) | RBAC as code: requester / approver / reader roles for the governed workflows. |
+| [`worker-pools/`](worker-pools/) | Private worker pools for the elevated (engine/factory) stacks. |
+| [`bootstrap/`](bootstrap/) | Root-admin, ONE-TIME setup per pattern: Spaces, the privileged stack, and its role binding. The only place elevation is created. |
+| [`examples/`](examples/) | `jimmy-app` — what an app repo ships (Dockerfile + `platform.yaml` shopping list). |
+| [`docs/`](docs/) | The nonadmin-launcher privilege memo and the hardening backlog. |
 
 ## The DevX progression
 
-These patterns are two rungs of one ladder. Each rung pushes more privilege into
-admin-owned, git-driven, policy-gated automation, so the developer's surface
-stays a narrow, audited request or trigger.
+One rule throughout: **decouple *creating* a privilege from *using* it.** Each
+rung pushes more privilege into admin-owned, git-driven, policy-gated
+automation.
 
-1. **Tickets** (where most teams start) — devs file requests; the platform team
-   manually creates Spaces, roles, and stacks. Slow, inconsistent, a bottleneck.
-2. **Self-service provisioning — `nonadmin-launcher`** — devs trigger an
-   admin-owned engine to get stacks in their Space, holding no admin. Kills the
-   "give me a stack" queue.
-3. **Governed credentials — `iam-factory`** — devs request cloud access from a
-   git-tracked catalog; the factory vends least-privilege, OIDC-trusted roles
-   per Space. Kills the "give me cloud access" queue, with a plan-time gate.
-4. **Converged onboarding** — one "onboard my service" request vends the Space +
-   scoped OIDC role + launcher together. The dev writes one YAML; everything
-   privileged is automation behind it.
-5. **Golden path** — a Blueprint/portal front-end on top (this is the "Template"
-   ask — done right, sitting *on* the decoupled elevation, not creating it), plus
-   policy-as-code enforcing the catalog and gates server-side (see
-   [docs/hardening-backlog.md](docs/hardening-backlog.md)).
-6. **Platform as product** — self-service across the lifecycle (provision →
-   deploy → observe → decommission), measured by DevX/DORA metrics.
-
-The throughline is one rule: **decouple *creating* a privilege from *using* it.**
+1. **Tickets** — manual platform-team fulfillment; slow bottleneck.
+2. **Self-service stacks — `nonadmin-launcher`** — devs trigger an admin-owned engine; no admin held. *(built)*
+3. **Governed credentials — `iam-factory`** — catalog-gated, OIDC-trusted per-Space roles. *(built)*
+4. **Converged onboarding — `app-factory`** — one YAML vends resources + the scoped app role. *(built)*
+5. **Golden path** — Blueprint/portal front-end + policy-as-code gates (`blueprints/`, `policies/`).
+6. **Platform as product** — full lifecycle self-service, measured by DevX/DORA metrics.
 
 ```mermaid
 flowchart LR
@@ -78,8 +43,6 @@ flowchart LR
     cv --> gp[Golden-path portal + policy-as-code]
     gp --> pp[Platform as product]
 ```
-
-*Where this repo sits: rungs 2 and 3 are built and live; 4-6 are the roadmap.*
 
 ## Repo map
 
@@ -91,23 +54,21 @@ patterns/
 │  └─ engine/                # code the engine stack runs (requests/ shopping list + app-example/)
 └─ app-factory/              # shopping-list engine: platform.yaml -> modules + ONE app IAM role
 modules/
-└─ {aws,azure,gcp}/{object-storage,database,secrets,compute}/   # dual-purpose wrappers (uniform id/name/endpoint/access; AWS adds iam_policy_json)
-blueprints/
-└─ object-storage.yaml       # Spacelift Blueprint: same module, filled via a form (ticketing path)
+└─ {aws,azure,gcp}/{object-storage,database,secrets,compute}/   # dual-purpose wrappers
+policies/                    # centralized policy-as-code: plan/approval/push/login/access/trigger/notification
+blueprints/                  # Spacelift Blueprints: same modules, filled via a form (ticketing path)
+roles/                       # RBAC as code: requester/approver/reader
+worker-pools/                # private worker pools for elevated stacks
+bootstrap/
+├─ iam-factory/              # root-admin, one-time: platform-admin Space + factory stack + role binding
+└─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, role binding, team role
 examples/
 └─ jimmy-app/                # what an app repo ships: Dockerfile + platform.yaml shopping list
-bootstrap/
-├─ iam-factory/              # root-admin, one-time: platform-admin Space + factory stack + role binding + integration
-└─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, the role binding, team role
 docs/
 ├─ nonadmin-launcher-privilege-memo.md   # design memo: why the binding, verified against the API
 └─ hardening-backlog.md      # deferred security items — READ THIS
 ```
 
-**Where the new pieces sit on the ladder:** `patterns/app-factory/` is rung 4
-(converged onboarding — one `platform.yaml` vends an app's resources plus its
-scoped IAM role), and `modules/` + `blueprints/` serve rung 5 (golden path /
-ticketing — the same modules, filled via a Blueprint form instead of code).
-
-**Who owns what:** the platform team owns `bootstrap/` and `patterns/`;
-product teams only trigger.
+**Who owns what:** the platform team owns `bootstrap/`, `patterns/`,
+`policies/`, `roles/`, and `worker-pools/`; product teams only submit requests
+and trigger.

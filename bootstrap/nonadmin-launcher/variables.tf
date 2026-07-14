@@ -1,7 +1,4 @@
-# The built-in "Space admin" system role. The role binding hands THIS to the
-# engine stack (scoped to the team Space) — never to a product-team user.
-# By default it is resolved at plan time from the system role's slug, so no
-# account-specific ULID needs to be hardcoded.
+# Resolved from the system role slug by default; the binding hands this to the ENGINE STACK, never a user.
 variable "space_admin_role_id" {
   type        = string
   default     = null

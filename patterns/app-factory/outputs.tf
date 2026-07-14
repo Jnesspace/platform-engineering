@@ -1,5 +1,4 @@
-# What a downstream deploy layer (k8s, a later rung) consumes: where everything
-# is, and the one role that can reach it.
+# Consumed by a downstream deploy layer (k8s, a later rung).
 
 output "resource_access" {
   description = "Map of provisioned resource (\"<primitive>/<name>\") => its `access` object."

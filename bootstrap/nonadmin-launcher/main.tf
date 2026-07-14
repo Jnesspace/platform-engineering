@@ -1,25 +1,6 @@
-##############################################################################
-# Platform provisioning — the "non-admin launcher" pattern as code
-#
-# This is the platform team's ONE-TIME, root-admin setup. It stands up, per
-# product team:
-#   1. a governance Space (`platform`) and the team's Space (`cpe-team1`)
-#   2. the admin-owned engine stack (runs code in ../../patterns/nonadmin-launcher/engine)
-#   3. the single privileged object: a Space-admin role binding attaching that
-#      role to the ENGINE STACK, scoped to the team Space
-#   4. a non-admin team role (read + trigger/confirm)
-#
-# The elevation lives on the stack (step 3), not on any user. Product-team
-# users hold only the role from step 4 and simply trigger the engine; its runs
-# act with the bound role, independent of who triggered them.
-#
-# NOTE: creating roles and attaching Space Admin both require ROOT admin — that
-# is the deliberate boundary. Apply this as a root-admin identity (see README).
-##############################################################################
+# One-time ROOT-ADMIN bootstrap: Spaces, admin-owned engine stack, Space-admin role bound to the STACK (never a user), non-admin team role.
 
-# Resolve the system "Space admin" role by its stable slug instead of a
-# hardcoded, account-specific ULID. var.space_admin_role_id remains an
-# optional escape hatch.
+# Resolve the system role by slug so no account-specific ULID is hardcoded.
 data "spacelift_role" "space_admin" {
   slug = "space-admin"
 }
@@ -28,19 +9,7 @@ locals {
   space_admin_role_id = coalesce(var.space_admin_role_id, data.spacelift_role.space_admin.id)
 }
 
-# --- 1. Spaces -------------------------------------------------------------
-# inherit_entities = false on both: these Spaces do NOT inherit parent/root
-# contexts, policies, or integrations — the tighter, no-leakage default. It is
-# set HERE, at creation, on purpose: disabling inheritance is a ROOT-ADMIN-only
-# operation ("only root admins can disable inheritance"), and this bootstrap is
-# the root-admin step. The non-root engine could never do it.
-#
-# Consequence: anything a stack in these Spaces needs — a non-default AWS/VCS
-# integration, a shared context — must be attached DIRECTLY to that Space/stack
-# by the platform admin, because nothing flows down from root and the engine
-# (scoped to the team Space) cannot reach root-level integrations. The demo's
-# app-example needs none, so nothing extra is required here; add per-Space
-# attachments when real downstream workloads need cloud credentials.
+# inherit_entities=false (no root leakage) is set here because disabling inheritance is a root-admin-only operation.
 resource "spacelift_space" "platform" {
   name             = var.platform_space_name
   parent_space_id  = "root"
@@ -55,30 +24,9 @@ resource "spacelift_space" "team" {
   inherit_entities = false
 }
 
-# Giving downstream stacks cloud credentials when inheritance is OFF.
-# Nothing flows from root, and the non-root engine can't reach a root-level
-# integration — so credentials must live IN the team Space. Two supported ways:
-#
-# (a) A team-scoped AWS integration. Root creates it here (in the team Space);
-#     the engine, which has Space-admin on the team Space, can then attach it to
-#     the app stacks it vends:
-#
-#   resource "spacelift_aws_integration" "team" {
-#     name                           = "${var.team_name}-aws"
-#     role_arn                       = "arn:aws:iam::<account>:role/<team-role>"
-#     space_id                       = spacelift_space.team.id
-#     generate_credentials_in_worker = false
-#   }
-#
-# (b) PREFERRED — OIDC per Space, exactly like patterns/iam-factory: mint a
-#     scoped, OIDC-trusted role and hand its ARN to stacks via an in-Space
-#     auto-attached context. No shared integration, least privilege by default.
-#     This is the natural convergence of the two patterns (see the top-level
-#     README's DevX progression).
+# With inheritance off, downstream cloud credentials must live IN the team Space; prefer per-Space OIDC roles as in patterns/iam-factory.
 
-# --- 2. The admin-owned engine stack ---------------------------------------
-# We deliberately do NOT set `administrative` (deprecated). The engine's power
-# comes solely from the role binding below.
+# Engine stack: its power comes solely from the role binding below (no deprecated `administrative` flag).
 resource "spacelift_stack" "onboarding_engine" {
   name         = var.engine_stack_name
   space_id     = spacelift_space.platform.id
@@ -92,13 +40,11 @@ resource "spacelift_stack" "onboarding_engine" {
   terraform_workflow_tool = "TERRAFORM_FOSS"
   terraform_version       = "1.5.7"
 
-  # Cheap hardening: mask well-known secret shapes in logs (the run carries an
-  # elevated token) and refuse accidental deletion of the privileged stack.
+  # Runs carry an elevated token: mask secret shapes in logs, block accidental deletion.
   enable_well_known_secret_masking = true
   protect_from_deletion            = true
 }
 
-# Hand the engine stack the team Space id so its runs know where to provision.
 resource "spacelift_environment_variable" "engine_team_space" {
   stack_id   = spacelift_stack.onboarding_engine.id
   name       = "TF_VAR_team_space_id"
@@ -106,8 +52,7 @@ resource "spacelift_environment_variable" "engine_team_space" {
   write_only = false
 }
 
-# Tell the engine what the VENDED app stacks should track, so nothing about
-# the vended repo/branch/path is hardcoded in the engine code.
+# Vended-stack repo/branch/path config, so nothing is hardcoded in the engine code.
 resource "spacelift_environment_variable" "engine_vended_repository" {
   stack_id   = spacelift_stack.onboarding_engine.id
   name       = "TF_VAR_vended_repository"
@@ -129,26 +74,21 @@ resource "spacelift_environment_variable" "engine_vended_project_root" {
   write_only = false
 }
 
-# --- 3. The elevation: Space-admin role bound to the STACK, scoped to team --
+# The elevation: Space-admin bound to the STACK, scoped to the team Space.
 resource "spacelift_role_attachment" "engine_admin_on_team" {
   stack_id = spacelift_stack.onboarding_engine.id
   role_id  = local.space_admin_role_id
   space_id = spacelift_space.team.id
 }
 
-# --- 4. The non-admin team role --------------------------------------------
-# No SPACE_ADMIN and no STACK_UPDATE, so holders cannot edit env:* labels or
-# attach roles. Assign it to the team's users/IdP group (example below).
+# No SPACE_ADMIN/STACK_UPDATE, so holders cannot edit env or attach roles.
 resource "spacelift_role" "team_consumer" {
   name        = "${var.team_name}-consumer"
   description = "Non-admin product-team role: read + trigger/confirm runs. No SPACE_ADMIN, no STACK_UPDATE."
   actions     = ["SPACE_READ", "RUN_TRIGGER", "RUN_CONFIRM"]
 }
 
-# Give the product team trigger rights on ONLY the engine stack (not the whole
-# platform Space). A Space-scoped attachment would let the team trigger every
-# stack in `platform`; stack scope confines them to this one governed entry
-# point. Set a real subject (idp_group_mapping_id or user_id) to activate.
+# Stack-scoped (not Space-scoped) so the team can trigger ONLY this entry point; set a real subject to activate.
 # resource "spacelift_role_attachment" "team_launch" {
 #   role_id  = spacelift_role.team_consumer.id
 #   stack_id = spacelift_stack.onboarding_engine.id

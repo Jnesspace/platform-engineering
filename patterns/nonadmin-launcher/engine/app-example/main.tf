@@ -1,6 +1,4 @@
-# Placeholder workload for the stacks the onboarding engine vends into the team
-# Space. Kept trivial — the PoC proves the engine can CREATE these stacks with
-# elevated permissions, not that the workload does anything.
+# Trivial placeholder workload for engine-vended stacks; the PoC proves creation, not the workload.
 terraform {
   required_providers {
     null = {

@@ -1,4 +1,4 @@
-# Provider CONFIG lives in the root (engine / blueprint / example), never here.
+# Provider config lives in the root, never here.
 terraform {
   required_version = ">= 1.4"
 

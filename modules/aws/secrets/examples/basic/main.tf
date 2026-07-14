@@ -1,5 +1,4 @@
-# Minimal root: provider config lives here (never in the module), and the
-# module is called with only its required inputs. Used for validate + registry.
+# Minimal root for validate + registry: provider config here, required inputs only.
 provider "aws" {}
 
 module "secrets" {

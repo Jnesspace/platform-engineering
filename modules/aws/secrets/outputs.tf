@@ -21,8 +21,6 @@ output "access" {
   }
 }
 
-# Read-only grant on exactly this secret: fetch the value, describe metadata.
-# No List*, no write, no other secrets.
 output "iam_policy_json" {
   description = "Least-privilege IAM policy: GetSecretValue + DescribeSecret on this secret only."
   value = jsonencode({

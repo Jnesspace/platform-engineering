@@ -23,8 +23,7 @@ output "access" {
   }
 }
 
-# A VM grants nothing to the app role by itself — apps run ON it, they don't
-# call the EC2 API. Kept empty on purpose (uniform interface across modules).
+# Empty on purpose: apps run ON the VM, not against the EC2 API (uniform interface).
 output "iam_policy_json" {
   description = "Empty: compute confers no API-level app permissions."
   value       = ""

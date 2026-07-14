@@ -1,19 +1,4 @@
-##############################################################################
-# One-time admin bootstrap for the iam-factory (role + Space vending machine).
-#
-# Applied by an ADMIN identity (root-admin Spacelift API key, or a root admin
-# stack). Creates, in Spacelift only (the factory's own runs create the AWS
-# resources):
-#   1. the `platform-admin` Space (parent of every vended Space)
-#   2. the `iam-factory` stack tracking patterns/iam-factory/ on this repo
-#   3. the elevation: Space-admin role bound to the stack, scoped to platform-admin
-#   4. the stack's TF vars + region + the AWS integration attachment
-#
-# NOTE: like the non-admin launcher, the privileged setup here is done by an
-# admin ONCE. Developers never run this — they only add a services/<slug>.yaml
-# request and trigger the factory. See ../../patterns/nonadmin-launcher/README.md
-# for why the deploying user cannot be the one to create the elevation.
-##############################################################################
+# One-time ROOT-ADMIN bootstrap for the iam-factory: platform-admin Space, factory stack, Space-admin role bound to the stack, config + AWS integration.
 
 terraform {
   required_providers {
@@ -77,8 +62,7 @@ locals {
   space_admin_role_id = coalesce(var.space_admin_role_id, data.spacelift_role.space_admin.id)
 }
 
-# 1. The admin plane. inherit_entities=true so the factory stack can see the
-#    root-level AWS integration (jakespace).
+# inherit_entities=true so the factory stack can reach the root-level AWS integration.
 resource "spacelift_space" "platform_admin" {
   name             = "platform-admin"
   parent_space_id  = "root"
@@ -86,8 +70,7 @@ resource "spacelift_space" "platform_admin" {
   inherit_entities = true
 }
 
-# 2. The factory stack. Not administrative (flag removed); power comes from the
-#    role binding below. autodeploy off so runs pause at the sign-off gate.
+# Factory stack: power comes from the role binding below; autodeploy off pauses runs at the sign-off gate.
 resource "spacelift_stack" "factory" {
   name         = "iam-factory"
   space_id     = spacelift_space.platform_admin.id
@@ -103,14 +86,13 @@ resource "spacelift_stack" "factory" {
   protect_from_deletion   = true
 }
 
-# 3. The elevation: Space-admin bound to the STACK, scoped to platform-admin.
+# The elevation: Space-admin bound to the STACK, scoped to platform-admin.
 resource "spacelift_role_attachment" "factory_admin" {
   stack_id = spacelift_stack.factory.id
   role_id  = local.space_admin_role_id
   space_id = spacelift_space.platform_admin.id
 }
 
-# 4. Stack config.
 resource "spacelift_environment_variable" "parent_space" {
   stack_id   = spacelift_stack.factory.id
   name       = "TF_VAR_parent_space_id"
@@ -139,7 +121,7 @@ resource "spacelift_environment_variable" "factory_region" {
   write_only = false
 }
 
-# 5. Attach the AWS integration so factory runs can mint IAM roles.
+# AWS integration so factory runs can mint IAM roles.
 resource "spacelift_aws_integration_attachment" "factory" {
   integration_id = var.aws_integration_id
   stack_id       = spacelift_stack.factory.id

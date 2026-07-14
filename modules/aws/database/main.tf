@@ -1,15 +1,6 @@
-##############################################################################
-# database (AWS) — an opinionated small RDS PostgreSQL instance.
-#
-# Opinions baked in: db.t3.micro / 20GB, never publicly accessible, storage
-# encrypted, master password generated here and stored ONLY in Secrets
-# Manager (it is never an input and never leaves state unencrypted paths).
-# Apps read credentials via access.secret_ref; iam_policy_json grants exactly
-# that one GetSecretValue.
-##############################################################################
+# Opinionated small RDS Postgres: private, encrypted, master password generated here and stored only in Secrets Manager.
 
-# Master password: generated, never supplied. No special chars — RDS rejects
-# '/', '@', '"' and spaces, so alphanumerics keep it universally safe.
+# No special chars: RDS rejects '/', '@', '"' and spaces.
 resource "random_password" "master" {
   length  = 24
   special = false
@@ -21,8 +12,7 @@ resource "aws_secretsmanager_secret" "master" {
   tags        = var.tags
 }
 
-# Full connection bundle, written after the instance exists so host/port are
-# real. Apps need only this secret + the policy from iam_policy_json.
+# Written after the instance exists so host/port are real.
 resource "aws_secretsmanager_secret_version" "master" {
   secret_id = aws_secretsmanager_secret.master.id
   secret_string = jsonencode({

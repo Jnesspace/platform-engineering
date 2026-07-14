@@ -1,10 +1,4 @@
-# app-factory (AWS path): turns a developer's shopping list (platform.yaml) into
-# AWS resources by composing the dual-purpose modules/aws/* wrappers, and
-# aggregates their least-privilege IAM into one app role (see iam.tf).
-#
-# Azure/GCP use the identical module interface; because Terraform eagerly
-# configures every declared provider, each cloud gets its own engine root (this
-# file with modules/<cloud>/* + that provider). AWS is the cloud wired live.
+# app-factory (AWS path): composes modules/aws/* from platform.yaml and aggregates their IAM into one app role (iam.tf); each cloud gets its own root because Terraform eagerly configures every declared provider.
 
 locals {
   shopping_list_path = startswith(var.shopping_list_file, "/") ? var.shopping_list_file : "${path.root}/${var.shopping_list_file}"
@@ -18,7 +12,6 @@ locals {
     managed_by = "app-factory"
   }
 
-  # Shopping-list entries keyed by logical name; each primitive key is optional.
   resources      = try(local.spec.resources, {})
   object_storage = { for r in try(local.resources.object_storage, []) : r.name => r }
   secrets        = { for r in try(local.resources.secrets, []) : r.name => r }

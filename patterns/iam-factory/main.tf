@@ -1,27 +1,10 @@
-##############################################################################
-# Platform factory ("role + space vending machine")
-#
-# One admin stack that turns a git-tracked "DevX shopping list" into real
-# environments. Drop a services/<name>.yaml file, push, and the next run mints,
-# for that service:
-#   - a Spacelift Space (child of the platform-admin Space)
-#   - a per-Space IAM role trusted only by that Space's OIDC `sub`, granted a
-#     scoped policy built from the platform-owned catalog.yaml
-#   - an auto-attached context handing the role ARN to every stack in the
-#     Space that carries the `aws-oidc` label
-#
-# Labeled stacks in a Space pick up their role automatically and, thanks to
-# the trust policy, can never assume another Space's role no matter what ARN
-# they type. What the role can DO is capped twice: the catalog gate (plan-time
-# allowlist) and the permissions boundary (runtime hard cap).
-##############################################################################
+# iam-factory: turns each services/*.yaml into a Space + OIDC-pinned scoped IAM role + auto-attached context; capped by the catalog gate (plan) and permissions boundary (runtime).
 
 locals {
   issuer   = "${var.account_subdomain}.app.spacelift.io"
   audience = "${var.account_subdomain}.app.spacelift.io"
 
-  # The DevX shopping list: one YAML per requested service/environment.
-  # Match both .yaml and .yml so a dev naming a file .yml isn't silently ignored.
+  # Match both extensions so a .yml file isn't silently ignored.
   service_files = setunion(
     fileset("${path.module}/services", "*.yaml"),
     fileset("${path.module}/services", "*.yml"),
@@ -31,31 +14,25 @@ locals {
     trimsuffix(trimsuffix(f, ".yaml"), ".yml") => yamldecode(file("${path.module}/services/${f}"))
   }
 
-  # Platform-owned catalog: permission-set name -> list of IAM actions.
   # catalog.yaml IS the allowed universe; services may only pick names from it.
   catalog = yamldecode(file("${path.module}/catalog.yaml"))
 
-  # Per service: requested permission-set names (default when YAML omits `permissions`).
   requested_sets = {
     for k, v in local.services : k => try(v.permissions, var.default_permission_sets)
   }
 
-  # Requested set names that are NOT in the catalog -> violations (block the run).
   unknown_sets = {
     for k, sets in local.requested_sets :
     k => [for s in sets : s if !contains(keys(local.catalog), s)]
   }
 
-  # Concrete IAM actions granted to each role = union of requested (valid) sets' actions.
   granted_actions = {
     for k, sets in local.requested_sets :
     k => distinct(flatten([for s in sets : local.catalog[s] if contains(keys(local.catalog), s)]))
   }
 }
 
-# ---------------------------------------------------------------------------
-# 1. The OIDC provider (created once).
-# ---------------------------------------------------------------------------
+# OIDC provider: created once, or referenced if it already exists.
 data "tls_certificate" "spacelift" {
   url = "https://${local.issuer}"
 }
@@ -77,13 +54,7 @@ locals {
   oidc_provider_arn = var.create_oidc_provider ? aws_iam_openid_connect_provider.spacelift[0].arn : data.aws_iam_openid_connect_provider.existing[0].arn
 }
 
-# ---------------------------------------------------------------------------
-# 2. The permissions boundary — the un-escapable hard cap. Vended roles carry
-#    a per-service scoped policy from the catalog, and the boundary caps even
-#    that: no IAM tampering, no touching the OIDC trust, no org/account
-#    control. sts:GetCallerIdentity stays allowed so AWS provider init works.
-#    Defense in depth on top of the catalog gate below.
-# ---------------------------------------------------------------------------
+# Permissions boundary: runtime hard cap on every vended role — no IAM/org/account tampering even if the catalog would allow it.
 resource "aws_iam_policy" "boundary" {
   name        = "spacelift-space-boundary"
   description = "Permissions boundary for Spacelift per-Space roles minted by the platform factory."
@@ -113,14 +84,7 @@ resource "aws_iam_policy" "boundary" {
   })
 }
 
-# ---------------------------------------------------------------------------
-# 3. One Space per shopping-list entry, created under the platform-admin Space.
-#    inherit_entities stays ON: DISABLING inheritance is a root-admin-only
-#    operation ("only root admins can disable inheritance"), and this factory
-#    deliberately runs with Space-admin (not root). Tightening vended-space
-#    inheritance to false must therefore be done by the root-admin bootstrap,
-#    not here — tracked in docs/hardening-backlog.md.
-# ---------------------------------------------------------------------------
+# inherit_entities stays true: disabling inheritance is root-admin-only and this factory runs with Space-admin (see docs/hardening-backlog.md).
 resource "spacelift_space" "service" {
   for_each = local.services
 
@@ -130,14 +94,7 @@ resource "spacelift_space" "service" {
   inherit_entities = true
 }
 
-# ---------------------------------------------------------------------------
-# 4. Plan-time enforcement gate. Fails the factory run if any service requested
-#    a permission set that isn't in catalog.yaml, or resolves to zero
-#    permissions. This is the guardrail: a developer cannot grant a role
-#    anything outside the platform-owned catalog, no matter what they put in
-#    their YAML. terraform_data is provider/credential-independent, so the
-#    gate evaluates before anything is minted.
-# ---------------------------------------------------------------------------
+# Plan-time gate: off-catalog or zero-permission requests fail before anything is minted (terraform_data needs no credentials).
 resource "terraform_data" "permission_gate" {
   for_each = local.services
   input    = local.granted_actions[each.key]
@@ -159,15 +116,10 @@ resource "terraform_data" "permission_gate" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# 5. One boundary-capped role per Space. Trust policy pins the OIDC `sub` to
-#    this Space only; the StringLike list accepts read- and write-scoped run
-#    tokens so plans and applies both work with a single role ARN.
-# ---------------------------------------------------------------------------
+# One boundary-capped role per Space; the OIDC `sub` is pinned to that Space, with read+write scopes so one ARN serves plans and applies.
 resource "aws_iam_role" "space" {
   for_each = local.services
 
-  # Gate first: the preconditions above must pass before this role is planned.
   depends_on = [terraform_data.permission_gate]
 
   name                 = "spacelift-${each.key}"
@@ -195,10 +147,7 @@ resource "aws_iam_role" "space" {
   })
 }
 
-# ---------------------------------------------------------------------------
-# 6. Per-service scoped inline policy: exactly the union of the catalog sets
-#    the service requested — nothing more. The boundary above still caps it.
-# ---------------------------------------------------------------------------
+# Scoped inline policy: exactly the requested catalog sets; the boundary still caps it.
 resource "aws_iam_role_policy" "space" {
   for_each = local.services
 
@@ -214,9 +163,7 @@ resource "aws_iam_role_policy" "space" {
         Resource = "*"
       },
       {
-        # Baseline every vended role needs regardless of catalog choice: the AWS
-        # provider calls sts:GetCallerIdentity during init. Boundary-safe (the
-        # boundary allows it), and least-privilege elsewhere.
+        # sts:GetCallerIdentity baseline so the AWS provider can init.
         Sid      = "ProviderBaseline"
         Effect   = "Allow"
         Action   = ["sts:GetCallerIdentity"]
@@ -226,11 +173,7 @@ resource "aws_iam_role_policy" "space" {
   })
 }
 
-# ---------------------------------------------------------------------------
-# 7. Automatic wiring: an auto-attached context per Space carrying the role ARN
-#    as TF_VAR_aws_role_arn. Stacks in the Space that carry the `aws-oidc`
-#    label pick it up automatically (autoattach:aws-oidc).
-# ---------------------------------------------------------------------------
+# Auto-attached context per Space hands TF_VAR_aws_role_arn to stacks labeled `aws-oidc`.
 resource "spacelift_context" "aws" {
   for_each = local.services
 
@@ -249,8 +192,7 @@ resource "spacelift_environment_variable" "role_arn" {
   write_only = false
 }
 
-# Region for the consuming stack's AWS provider (creds come from the role above,
-# but the provider still needs a region). IAM is global; this is just to init.
+# IAM is global, but the consuming stack's AWS provider still needs a region to init.
 resource "spacelift_environment_variable" "aws_region" {
   for_each = local.services
 

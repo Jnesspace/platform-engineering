@@ -1,13 +1,6 @@
-##############################################################################
-# compute (AWS) — an opinionated small EC2 instance in the default VPC.
-#
-# Opinions baked in: t3.micro, latest Amazon Linux 2023 (resolved via SSM so
-# the AMI never goes stale in code), default VPC/subnet, and a minimal
-# security group: NO inbound, all outbound. Open ingress deliberately, per
-# app, outside this module.
-##############################################################################
+# Opinionated small EC2 in the default VPC: no inbound, all outbound; open ingress per app, outside this module.
 
-# Always-current AL2023 AMI, resolved at plan time from the public SSM alias.
+# AMI resolved via SSM so it never goes stale in code.
 data "aws_ssm_parameter" "al2023" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
@@ -16,7 +9,6 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Default-for-AZ subnets of the default VPC; the instance lands in the first.
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -29,7 +21,6 @@ data "aws_subnets" "default" {
   }
 }
 
-# Minimal by construction: zero ingress rules, unrestricted egress.
 resource "aws_security_group" "this" {
   name        = "${var.name}-sg"
   description = "Minimal SG for ${var.name}: no inbound, all outbound"

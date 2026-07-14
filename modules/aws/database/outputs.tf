@@ -24,8 +24,7 @@ output "access" {
   }
 }
 
-# Apps never get RDS API permissions — they only need to READ the one secret
-# holding this instance's credentials. That single action is the whole grant.
+# Apps never get RDS API permissions — only a read on the credentials secret.
 output "iam_policy_json" {
   description = "Least-privilege IAM policy: GetSecretValue on this database's credentials secret only."
   value = jsonencode({

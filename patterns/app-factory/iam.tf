@@ -1,11 +1,4 @@
-# "IAM and all those things": every AWS module emits an iam_policy_json scoped
-# to exactly the resource it created. The engine attaches each as an inline
-# policy on ONE app role, so the app can reach precisely what it ordered —
-# nothing else.
-#
-# Keys come from the shopping list (known at plan); the policy JSON embeds
-# resource ARNs (known only after apply) — so we key the for_each by resource,
-# never by the policy content, and skip compute (it needs no data-plane policy).
+# Aggregate each module's least-privilege iam_policy_json onto ONE app role; keyed by resource because the policy JSON embeds ARNs unknown at plan.
 
 locals {
   app_policies = merge(
@@ -19,8 +12,7 @@ resource "aws_iam_role" "app" {
   name = "${local.app_name}-app"
   tags = local.tags
 
-  # EC2 trust as the simple default; the later k8s rung swaps this for
-  # IRSA / EKS Pod Identity trust so the app's pods assume the role.
+  # EC2 trust as the simple default; a later k8s rung swaps in IRSA / Pod Identity trust.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -31,8 +23,7 @@ resource "aws_iam_role" "app" {
   })
 }
 
-# One inline policy per provisioned resource, each the module's least-privilege
-# grant. Sids only need to be unique within a policy, so no re-Sid'ing needed.
+# Sids only need to be unique within each policy, so no re-Sid'ing needed.
 resource "aws_iam_role_policy" "app" {
   for_each = local.app_policies
 

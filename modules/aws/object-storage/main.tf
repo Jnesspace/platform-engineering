@@ -1,10 +1,4 @@
-##############################################################################
-# object-storage (AWS) — an opinionated private S3 bucket.
-#
-# Opinions baked in: all public access blocked, versioning on. Consumers get
-# a least-privilege IAM policy (iam_policy_json output) scoped to this bucket
-# only — the app-factory attaches it to the app role.
-##############################################################################
+# Opinionated private S3 bucket: public access blocked, versioning on; iam_policy_json output grants this bucket only.
 
 resource "aws_s3_bucket" "this" {
   bucket        = var.name
@@ -12,7 +6,6 @@ resource "aws_s3_bucket" "this" {
   tags          = var.tags
 }
 
-# Non-negotiable: nothing in this bucket is ever public.
 resource "aws_s3_bucket_public_access_block" "this" {
   bucket = aws_s3_bucket.this.id
 
@@ -22,7 +15,6 @@ resource "aws_s3_bucket_public_access_block" "this" {
   restrict_public_buckets = true
 }
 
-# Versioning on by default: cheap insurance against accidental overwrites.
 resource "aws_s3_bucket_versioning" "this" {
   bucket = aws_s3_bucket.this.id
 

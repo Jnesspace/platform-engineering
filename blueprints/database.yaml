@@ -1,0 +1,50 @@
+# Spacelift Blueprint: the non-developer / ticketing path for a PostgreSQL database (modules/aws/database).
+name: database
+description: >-
+  Request a small private RDS PostgreSQL instance without writing Terraform.
+  Creates a stack whose root is modules/aws/database, with the form inputs
+  passed as TF_VAR_* — the exact module app-factory composes.
+
+inputs:
+  - id: db_name
+    name: Database name
+    description: RDS identifier; also derives the credentials secret name (lowercase, hyphens).
+    type: short_text
+  - id: team
+    name: Owning team
+    description: Used for the stack description and the instance's team tag.
+    type: short_text
+  - id: instance_class
+    name: Instance class
+    type: select
+    options:
+      - db.t3.micro
+      - db.t3.small
+    default: db.t3.micro
+
+stack:
+  name: database-${{ inputs.db_name }}
+  space: root
+  description: RDS PostgreSQL ${{ inputs.db_name }}, requested via Blueprint by ${{ inputs.team }}.
+  labels:
+    - blueprint
+    - database
+  administrative: false
+  auto_deploy: false
+  vcs:
+    provider: GITHUB
+    repository: platform-engineering
+    branch: main
+    project_root: modules/aws/database
+  environment:
+    variables:
+      - name: TF_VAR_name
+        value: ${{ inputs.db_name }}
+      - name: TF_VAR_instance_class
+        value: ${{ inputs.instance_class }}
+      - name: TF_VAR_tags
+        value: '{ team = "${{ inputs.team }}", managed_by = "blueprint" }'
+  vendor:
+    terraform:
+      manage_state: true
+      version: "1.5.7"

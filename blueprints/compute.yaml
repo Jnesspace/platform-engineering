@@ -1,0 +1,50 @@
+# Spacelift Blueprint: the non-developer / ticketing path for an EC2 instance (modules/aws/compute).
+name: compute
+description: >-
+  Request a small EC2 instance without writing Terraform. Creates a stack whose
+  root is modules/aws/compute, with the form inputs passed as TF_VAR_* — the
+  exact module app-factory composes.
+
+inputs:
+  - id: instance_name
+    name: Instance name
+    description: Logical name; used for the Name tag and derived resource names.
+    type: short_text
+  - id: team
+    name: Owning team
+    description: Used for the stack description and the instance's team tag.
+    type: short_text
+  - id: instance_type
+    name: Instance type
+    type: select
+    options:
+      - t3.micro
+      - t3.small
+    default: t3.micro
+
+stack:
+  name: compute-${{ inputs.instance_name }}
+  space: root
+  description: EC2 instance ${{ inputs.instance_name }}, requested via Blueprint by ${{ inputs.team }}.
+  labels:
+    - blueprint
+    - compute
+  administrative: false
+  auto_deploy: false
+  vcs:
+    provider: GITHUB
+    repository: platform-engineering
+    branch: main
+    project_root: modules/aws/compute
+  environment:
+    variables:
+      - name: TF_VAR_name
+        value: ${{ inputs.instance_name }}
+      - name: TF_VAR_instance_type
+        value: ${{ inputs.instance_type }}
+      - name: TF_VAR_tags
+        value: '{ team = "${{ inputs.team }}", managed_by = "blueprint" }'
+  vendor:
+    terraform:
+      manage_state: true
+      version: "1.5.7"

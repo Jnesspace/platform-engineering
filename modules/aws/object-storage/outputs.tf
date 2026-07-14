@@ -22,8 +22,6 @@ output "access" {
   }
 }
 
-# Least-privilege grant for a typical app: list the bucket, CRUD its objects,
-# nothing else and nowhere else. Attached to the app role by the engine.
 output "iam_policy_json" {
   description = "Least-privilege IAM policy granting app access to this bucket only."
   value = jsonencode({
