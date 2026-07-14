@@ -31,3 +31,11 @@ PoC.
 6. **Apply the same guardrails to iam-factory.**
    It has the bigger blast radius (platform-admin scope over Space and IAM
    vending), so items 1-5 apply there at least as strongly.
+
+7. **Tighten vended-space inheritance (`inherit_entities = false`).**
+   Vended Spaces currently inherit parent entities. Disabling inheritance is a
+   **root-admin-only** operation ("only root admins can disable inheritance"),
+   and the factory deliberately runs with Space-admin, not root — so this must
+   be done by the root-admin bootstrap, not the factory. (This is itself a nice
+   proof of the anti-escalation boundary: the factory cannot loosen or tighten
+   the Space hierarchy it provisions into.)

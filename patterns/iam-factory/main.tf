@@ -115,10 +115,11 @@ resource "aws_iam_policy" "boundary" {
 
 # ---------------------------------------------------------------------------
 # 3. One Space per shopping-list entry, created under the platform-admin Space.
-#    inherit_entities is OFF: vended Spaces must not inherit parent entities
-#    (contexts, policies, integrations). The aws-<slug> context lives inside
-#    the Space and autoattaches, and consuming stacks authenticate via OIDC —
-#    not the parent's root integration.
+#    inherit_entities stays ON: DISABLING inheritance is a root-admin-only
+#    operation ("only root admins can disable inheritance"), and this factory
+#    deliberately runs with Space-admin (not root). Tightening vended-space
+#    inheritance to false must therefore be done by the root-admin bootstrap,
+#    not here — tracked in docs/hardening-backlog.md.
 # ---------------------------------------------------------------------------
 resource "spacelift_space" "service" {
   for_each = local.services
@@ -126,7 +127,7 @@ resource "spacelift_space" "service" {
   name             = try(each.value.name, each.key)
   parent_space_id  = try(each.value.parent_space, var.parent_space_id)
   description      = try(each.value.description, "Vended environment for ${each.key}")
-  inherit_entities = false
+  inherit_entities = true
 }
 
 # ---------------------------------------------------------------------------
