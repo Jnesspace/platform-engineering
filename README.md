@@ -44,6 +44,43 @@ flowchart LR
 
 *One shape, two patterns: the platform team owns the guardrails; product teams hold only a narrow, audited entry point.*
 
+## The DevX progression
+
+These patterns are two rungs of one ladder. Each rung pushes more privilege into
+admin-owned, git-driven, policy-gated automation, so the developer's surface
+stays a narrow, audited request or trigger.
+
+1. **Tickets** (where most teams start) — devs file requests; the platform team
+   manually creates Spaces, roles, and stacks. Slow, inconsistent, a bottleneck.
+2. **Self-service provisioning — `nonadmin-launcher`** — devs trigger an
+   admin-owned engine to get stacks in their Space, holding no admin. Kills the
+   "give me a stack" queue.
+3. **Governed credentials — `iam-factory`** — devs request cloud access from a
+   git-tracked catalog; the factory vends least-privilege, OIDC-trusted roles
+   per Space. Kills the "give me cloud access" queue, with a plan-time gate.
+4. **Converged onboarding** — one "onboard my service" request vends the Space +
+   scoped OIDC role + launcher together. The dev writes one YAML; everything
+   privileged is automation behind it.
+5. **Golden path** — a Blueprint/portal front-end on top (this is the "Template"
+   ask — done right, sitting *on* the decoupled elevation, not creating it), plus
+   policy-as-code enforcing the catalog and gates server-side (see
+   [docs/hardening-backlog.md](docs/hardening-backlog.md)).
+6. **Platform as product** — self-service across the lifecycle (provision →
+   deploy → observe → decommission), measured by DevX/DORA metrics.
+
+The throughline is one rule: **decouple *creating* a privilege from *using* it.**
+
+```mermaid
+flowchart LR
+    t[Tickets] --> l[nonadmin-launcher: self-service stacks]
+    l --> c[iam-factory: governed credentials]
+    c --> cv[Converged onboarding]
+    cv --> gp[Golden-path portal + policy-as-code]
+    gp --> pp[Platform as product]
+```
+
+*Where this repo sits: rungs 2 and 3 are built and live; 4-6 are the roadmap.*
+
 ## Repo map
 
 ```

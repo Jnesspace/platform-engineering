@@ -55,6 +55,27 @@ resource "spacelift_space" "team" {
   inherit_entities = false
 }
 
+# Giving downstream stacks cloud credentials when inheritance is OFF.
+# Nothing flows from root, and the non-root engine can't reach a root-level
+# integration — so credentials must live IN the team Space. Two supported ways:
+#
+# (a) A team-scoped AWS integration. Root creates it here (in the team Space);
+#     the engine, which has Space-admin on the team Space, can then attach it to
+#     the app stacks it vends:
+#
+#   resource "spacelift_aws_integration" "team" {
+#     name                           = "${var.team_name}-aws"
+#     role_arn                       = "arn:aws:iam::<account>:role/<team-role>"
+#     space_id                       = spacelift_space.team.id
+#     generate_credentials_in_worker = false
+#   }
+#
+# (b) PREFERRED — OIDC per Space, exactly like patterns/iam-factory: mint a
+#     scoped, OIDC-trusted role and hand its ARN to stacks via an in-Space
+#     auto-attached context. No shared integration, least privilege by default.
+#     This is the natural convergence of the two patterns (see the top-level
+#     README's DevX progression).
+
 # --- 2. The admin-owned engine stack ---------------------------------------
 # We deliberately do NOT set `administrative` (deprecated). The engine's power
 # comes solely from the role binding below.
