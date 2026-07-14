@@ -1,15 +1,8 @@
-# Provider CONFIG lives here in the root, never in the modules. All three are
-# declared so cloud choice is a data change (platform.yaml), not a code change;
-# unused providers configure fine and create nothing.
+# Provider CONFIG lives in the root, never in the modules. This engine is the
+# AWS path (the cloud wired live). Terraform eagerly configures every declared
+# provider — so one root can't span clouds without every cloud's credentials.
+# The azure/gcp modules use the identical interface, so an azure/gcp engine is
+# this same file with its provider + the modules/<cloud>/* blocks swapped in.
 provider "aws" {
   region = var.region
-}
-
-provider "azurerm" {
-  features {}
-}
-
-provider "google" {
-  project = var.project
-  zone    = var.zone
 }

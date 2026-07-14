@@ -6,7 +6,7 @@ it into cloud resources by composing the same dual-purpose wrappers under
 developer never touches Terraform, providers, or IAM.
 
 ```
-platform.yaml  ──►  app-factory  ──►  modules/<cloud>/<primitive> (one call per entry)
+platform.yaml  ──►  app-factory (AWS)  ──►  modules/aws/<primitive> (one call per entry)
                         │
                         └──►  ONE app IAM role + policy (AWS), built from each
                               module's iam_policy_json — access to exactly what
@@ -17,7 +17,7 @@ platform.yaml  ──►  app-factory  ──►  modules/<cloud>/<primitive> (o
 
 ```yaml
 name: jimmy-app          # app name; prefixes every resource name
-cloud: aws               # aws | azure | gcp — wins over var.cloud
+cloud: aws               # this engine serves aws (azure/gcp: see below)
 resources:               # every key optional; entries are lists
   object_storage:
     - name: uploads
@@ -33,15 +33,19 @@ resources:               # every key optional; entries are lists
 The engine reads it via `var.shopping_list_file` (default:
 `../../examples/jimmy-app/platform.yaml`).
 
-## How cloud choice works
+## Cloud coverage
 
-Terraform module sources are static, so the engine declares **all twelve**
-module blocks (`modules/{aws,azure,gcp}/{object-storage,database,secrets,compute}`)
-and gates each with a conditional `for_each`: the selected cloud's blocks get a
-map of the requested entries, the other clouds get `{}` and expand to nothing.
-Switching cloud is a one-line data change in `platform.yaml`, not a code
-change. All three provider blocks are configured; only AWS is exercised live
-today.
+This engine is the **AWS path** — the cloud wired live. It composes the
+`modules/aws/*` wrappers. Azure and GCP expose the **same module interface**
+(`modules/{azure,gcp}/*`, validated), so an Azure or GCP engine is this exact
+file with its provider block and `modules/<cloud>/*` swapped in.
+
+Why one root per cloud, not one root for all three? Terraform eagerly configures
+**every** declared provider, so a single root declaring aws + azurerm + google
+would demand all three clouds' credentials on every run — even an AWS-only one.
+Per-cloud engines keep each run to one credential set. The shopping list's
+`cloud:` must be `aws` here; anything else fails fast with a pointer to that
+cloud's modules.
 
 ## The IAM wiring (AWS)
 
@@ -55,9 +59,9 @@ inside their `access` output; binding those is a later rung.
 
 | output | what it is |
 |---|---|
-| `resource_access` | map `"<primitive>/<name>"` => the module's `access` object (sensitive: Azure db/vm access carries credentials) |
-| `resource_ids` | same keys => primary id (ARN / resource id / self link), non-sensitive |
-| `app_role_arn` | the aggregated app role (AWS; null elsewhere) |
+| `resource_access` | map `"<primitive>/<name>"` => the module's `access` object (marked sensitive as a precaution) |
+| `resource_ids` | same keys => primary id (ARN / resource id), non-sensitive |
+| `app_role_arn` | the aggregated app IAM role |
 
 This is exactly what the later k8s deploy rung consumes: mount
 `resource_access` as config, run pods as `app_role_arn`.

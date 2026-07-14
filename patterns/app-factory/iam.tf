@@ -1,28 +1,25 @@
 # "IAM and all those things": every AWS module emits an iam_policy_json scoped
 # to exactly the resource it created. The engine aggregates them into ONE app
 # role + ONE policy, so the app can reach precisely what it ordered — nothing
-# else. (AWS path only; Azure/GCP modules expose role/scope data in `access`
-# for their own RBAC wiring on a later rung.)
+# else.
 
 locals {
-  aws_policy_docs = compact(concat(
-    [for m in values(module.aws_object_storage) : m.iam_policy_json],
-    [for m in values(module.aws_secrets) : m.iam_policy_json],
-    [for m in values(module.aws_database) : m.iam_policy_json],
-    [for m in values(module.aws_compute) : m.iam_policy_json], # compute emits "" — compact() drops it
+  policy_docs = compact(concat(
+    [for m in values(module.object_storage) : m.iam_policy_json],
+    [for m in values(module.secrets) : m.iam_policy_json],
+    [for m in values(module.database) : m.iam_policy_json],
+    [for m in values(module.compute) : m.iam_policy_json], # compute emits "" — compact() drops it
   ))
 
   # Modules use fixed Sids, which would collide when the same primitive is
   # ordered twice — re-Sid every statement with a unique index.
-  aws_statements = [
-    for i, s in flatten([for doc in local.aws_policy_docs : jsondecode(doc).Statement]) :
+  statements = [
+    for i, s in flatten([for doc in local.policy_docs : jsondecode(doc).Statement]) :
     merge(s, { Sid = format("AppFactory%03d", i) })
   ]
 }
 
 resource "aws_iam_role" "app" {
-  count = local.is_aws ? 1 : 0
-
   name = "${local.app_name}-app"
   tags = local.tags
 
@@ -39,20 +36,20 @@ resource "aws_iam_role" "app" {
 }
 
 resource "aws_iam_policy" "app" {
-  count = local.is_aws && length(local.aws_statements) > 0 ? 1 : 0
+  count = length(local.statements) > 0 ? 1 : 0
 
   name = "${local.app_name}-app-access"
   tags = local.tags
 
   policy = jsonencode({
     Version   = "2012-10-17"
-    Statement = local.aws_statements
+    Statement = local.statements
   })
 }
 
 resource "aws_iam_role_policy_attachment" "app" {
-  count = local.is_aws && length(local.aws_statements) > 0 ? 1 : 0
+  count = length(local.statements) > 0 ? 1 : 0
 
-  role       = aws_iam_role.app[0].name
+  role       = aws_iam_role.app.name
   policy_arn = aws_iam_policy.app[0].arn
 }
