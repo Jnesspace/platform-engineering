@@ -51,7 +51,7 @@ patterns/
 ├─ iam-factory/              # code the factory stack runs (catalog, services/, gate, roles)
 └─ nonadmin-launcher/
    ├─ README.md              # the pattern, end to end
-   └─ engine/                # code the engine stack runs (+ app-example/ workload)
+   └─ engine/                # code the engine stack runs (requests/ shopping list + app-example/)
 bootstrap/
 └─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, the role binding, team role
 docs/
