@@ -1,0 +1,60 @@
+# Platform-owned permission catalog.
+#
+# This file IS the set of allowed perms. A service may only reference names
+# defined here; anything else fails the factory run at plan time. Adding or
+# expanding a set is a platform-reviewed change to THIS file.
+#
+# Schema: <set-name>: [<IAM action>, ...]
+readonly:
+  - ec2:Describe*
+  - s3:Get*
+  - s3:List*
+  - dynamodb:Describe*
+  - dynamodb:List*
+  - logs:Describe*
+  - logs:Get*
+  - cloudwatch:Get*
+  - cloudwatch:List*
+  - cloudwatch:Describe*
+  - sts:GetCallerIdentity
+
+s3-readonly:
+  - s3:GetObject
+  - s3:ListBucket
+  - s3:GetBucketLocation
+
+s3-readwrite:
+  - s3:GetObject
+  - s3:PutObject
+  - s3:DeleteObject
+  - s3:ListBucket
+  - s3:GetBucketLocation
+
+dynamodb:
+  - dynamodb:GetItem
+  - dynamodb:PutItem
+  - dynamodb:Query
+  - dynamodb:Scan
+  - dynamodb:UpdateItem
+  - dynamodb:DeleteItem
+  - dynamodb:BatchGetItem
+  - dynamodb:BatchWriteItem
+  - dynamodb:DescribeTable
+
+sqs:
+  - sqs:SendMessage
+  - sqs:ReceiveMessage
+  - sqs:DeleteMessage
+  - sqs:GetQueueAttributes
+  - sqs:GetQueueUrl
+
+lambda-invoke:
+  - lambda:InvokeFunction
+  - lambda:GetFunction
+
+logs-write:
+  - logs:CreateLogGroup
+  - logs:CreateLogStream
+  - logs:PutLogEvents
+  - logs:DescribeLogGroups
+  - logs:DescribeLogStreams

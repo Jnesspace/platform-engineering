@@ -1,0 +1,7 @@
+# DevX shopping list entry — a narrower grant than payments, proving the
+# catalog differentiates per service. Same GitOps flow: add, push, confirm.
+name: analytics
+description: Analytics squad environment (read-mostly, vended by the platform factory)
+permissions:
+  - readonly
+  - s3-readonly

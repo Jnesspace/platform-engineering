@@ -1,0 +1,15 @@
+# DevX shopping list entry.
+# Add a file like this, push, and the platform factory mints a Space + a
+# scoped AWS role + an auto-attached context for it. Delete the file to
+# deprovision. The filename (without .yaml) is the slug used for the role and
+# context names.
+name: payments
+description: Payments squad environment (vended by the platform factory)
+# parent_space: omitted -> defaults to the platform-admin Space (var.parent_space_id)
+# Permission sets from catalog.yaml. Anything not in the catalog fails the run.
+# Omit the block entirely to get the default (var.default_permission_sets).
+permissions:
+  - s3-readwrite
+  - dynamodb
+  - sqs
+  - logs-write
