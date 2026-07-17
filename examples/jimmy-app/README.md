@@ -6,6 +6,6 @@ ships their code (`Dockerfile`) plus one shopping list (`platform.yaml`), and
 secret, Postgres — with a single least-privilege IAM role wired to exactly
 those resources.
 
-The Kubernetes deploy layer that would consume the engine's `resource_access`
-output (and assume the app role) is a **later rung** — deliberately out of
-scope here.
+The Kubernetes deploy layer that consumes the engine's `resource_access`
+output (and assumes the app role) lives in
+[`patterns/app-deploy`](../../patterns/app-deploy) — see [deploy.md](deploy.md).

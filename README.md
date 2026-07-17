@@ -13,6 +13,7 @@ points — never admin rights or IAM credentials.
 | Section | What it is / when you'd grab it |
 |---|---|
 | [`patterns/`](patterns/) | The three engines: `iam-factory` (vends Spaces + OIDC-scoped AWS roles from a catalog), `nonadmin-launcher` (admin-owned engine vends app stacks; teams only trigger), `app-factory` (one `platform.yaml` → cloud resources + one least-privilege app role). |
+| [`patterns/app-deploy/`](patterns/app-deploy/) | The k8s deploy rung: runs the app image with app-factory's outputs wired in — IRSA to the app role, bucket/secret refs as env. No static creds in the pod. |
 | [`modules/`](modules/) | Dual-purpose wrappers, `{aws,azure,gcp} × {object-storage,database,secrets,compute}`, with a uniform `id/name/endpoint/access` interface (AWS adds `iam_policy_json`). Grab when composing an engine or a Blueprint. |
 | [`policies/`](policies/) | Centralized policy-as-code: plan, approval, push, login, access, trigger, notification. Grab when enforcing gates server-side instead of in engine code. |
 | [`blueprints/`](blueprints/) | Ticketing / self-service forms: the same modules filled via a Spacelift Blueprint instead of code. |
@@ -31,7 +32,7 @@ automation.
 1. **Tickets** — manual platform-team fulfillment; slow bottleneck.
 2. **Self-service stacks — `nonadmin-launcher`** — devs trigger an admin-owned engine; no admin held. *(built)*
 3. **Governed credentials — `iam-factory`** — catalog-gated, OIDC-trusted per-Space roles. *(built)*
-4. **Converged onboarding — `app-factory`** — one YAML vends resources + the scoped app role. *(built)*
+4. **Converged onboarding — `app-factory`** — one YAML vends resources + the scoped app role; `app-deploy` then runs the image on k8s with them wired in — the "app just deploys" step. *(built)*
 5. **Golden path** — Blueprint/portal front-end + policy-as-code gates (`blueprints/`, `policies/`).
 6. **Platform as product** — full lifecycle self-service, measured by DevX/DORA metrics.
 
@@ -52,7 +53,8 @@ patterns/
 ├─ nonadmin-launcher/
 │  ├─ README.md              # the pattern, end to end
 │  └─ engine/                # code the engine stack runs (requests/ shopping list + app-example/)
-└─ app-factory/              # shopping-list engine: platform.yaml -> modules + ONE app IAM role
+├─ app-factory/              # shopping-list engine: platform.yaml -> modules + ONE app IAM role
+└─ app-deploy/               # k8s deploy rung: runs the app image with app-factory's outputs wired in
 modules/
 └─ {aws,azure,gcp}/{object-storage,database,secrets,compute}/   # dual-purpose wrappers
 policies/                    # centralized policy-as-code: plan/approval/push/login/access/trigger/notification
