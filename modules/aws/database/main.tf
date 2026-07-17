@@ -1,9 +1,19 @@
 # Opinionated small RDS Postgres: private, encrypted, master password generated here and stored only in Secrets Manager.
 
+# Rotation clock: once the window elapses, the next apply sees a new id and the keeper regenerates the password.
+resource "time_rotating" "master" {
+  count = var.rotation_days > 0 ? 1 : 0
+
+  rotation_days = var.rotation_days
+}
+
 # No special chars: RDS rejects '/', '@', '"' and spaces.
 resource "random_password" "master" {
   length  = 24
   special = false
+
+  # Null when rotation is off so existing passwords are untouched.
+  keepers = var.rotation_days > 0 ? { rotated_at = one(time_rotating.master[*].id) } : null
 }
 
 resource "aws_secretsmanager_secret" "master" {

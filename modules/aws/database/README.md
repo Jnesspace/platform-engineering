@@ -13,6 +13,9 @@ A small, private RDS PostgreSQL instance; the generated master password lives on
 | `allocated_storage_gb` | `number` | `20` | Storage in GiB. |
 | `database_name` | `string` | `"app"` | Initial database name. |
 | `master_username` | `string` | `"app_admin"` | Master username (password is generated, never an input). |
+| `rotation_days` | `number` | `0` | When > 0, regenerate the master password on the first apply after every N days; `0` = off. |
+
+Rotation only takes effect on an apply after the window elapses — pair with `schedules/secret-rotation` to fire it on a cron.
 
 ## Outputs
 

@@ -15,6 +15,7 @@ points — never admin rights or IAM credentials.
 | [`patterns/`](patterns/) | The three engines: `iam-factory` (vends Spaces + OIDC-scoped AWS roles from a catalog), `nonadmin-launcher` (admin-owned engine vends app stacks; teams only trigger), `app-factory` (one `platform.yaml` → cloud resources + one least-privilege app role). |
 | [`patterns/app-deploy/`](patterns/app-deploy/) | The k8s deploy rung: runs the app image with app-factory's outputs wired in — IRSA to the app role, bucket/secret refs as env. No static creds in the pod. |
 | [`modules/`](modules/) | Dual-purpose wrappers, `{aws,azure,gcp} × {object-storage,database,secrets,compute}`, with a uniform `id/name/endpoint/access` interface (AWS adds `iam_policy_json`). Grab when composing an engine or a Blueprint. |
+| [`schedules/`](schedules/) | Spacelift scheduling primitives: scheduled re-apply for secret rotation (flagship), nightly runs, cron tasks, ephemeral-env TTL teardown, drift detection. |
 | [`policies/`](policies/) | Centralized policy-as-code: plan, approval, push, login, access, trigger, notification. Grab when enforcing gates server-side instead of in engine code. |
 | [`blueprints/`](blueprints/) | Ticketing / self-service forms: the same modules filled via a Spacelift Blueprint instead of code. |
 | [`roles/`](roles/) | RBAC as code: requester / approver / reader roles for the governed workflows. |
@@ -57,6 +58,7 @@ patterns/
 └─ app-deploy/               # k8s deploy rung: runs the app image with app-factory's outputs wired in
 modules/
 └─ {aws,azure,gcp}/{object-storage,database,secrets,compute}/   # dual-purpose wrappers
+schedules/                   # scheduling primitives: secret-rotation (flagship), scheduled-run/task, ephemeral TTL, drift detection
 policies/                    # centralized policy-as-code: plan/approval/push/login/access/trigger/notification
 blueprints/                  # Spacelift Blueprints: same modules, filled via a form (ticketing path)
 roles/                       # RBAC as code: requester/approver/reader
