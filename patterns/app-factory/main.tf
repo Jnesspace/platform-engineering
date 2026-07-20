@@ -2,7 +2,8 @@
 
 locals {
   shopping_list_path = startswith(var.shopping_list_file, "/") ? var.shopping_list_file : "${path.root}/${var.shopping_list_file}"
-  spec               = yamldecode(file(local.shopping_list_path))
+  # Inline YAML (Blueprint/form path) wins over the file (git path).
+  spec = yamldecode(var.shopping_list_yaml != "" ? var.shopping_list_yaml : file(local.shopping_list_path))
 
   cloud    = try(local.spec.cloud, "aws")
   app_name = var.app_name != "" ? var.app_name : try(local.spec.name, "app")

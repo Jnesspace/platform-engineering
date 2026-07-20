@@ -13,6 +13,11 @@ travel with the module, not the entry point.
 | [`database.yaml`](database.yaml) | RDS PostgreSQL via `modules/aws/database` | db_name, team, instance_class |
 | [`secrets.yaml`](secrets.yaml) | Secrets Manager secret via `modules/aws/secrets` | secret_name, team, initial_value |
 | [`compute.yaml`](compute.yaml) | EC2 instance via `modules/aws/compute` | instance_name, team, instance_type |
+| [`app.yaml`](app.yaml) | a whole app (storage + secret + scoped IAM role) via the `patterns/app-factory` engine | app_name, team |
+
+`object-storage`/`database`/`secrets`/`compute` front a single module; `app.yaml`
+fronts the **app-factory engine**, so one form composes several modules plus the
+app's IAM role — the same engine the GitOps `platform.yaml` path runs.
 
 This is rung 5 of the DevX ladder (golden path / ticketing done right): the
 Blueprint sits *on top of* the same module catalog — it never becomes a second
