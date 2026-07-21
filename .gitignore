@@ -3,3 +3,7 @@
 *.tfstate.*
 .env
 crash.log
+
+# cartogopher local artifacts
+bakes/
+fast.yaml

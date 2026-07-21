@@ -8,6 +8,10 @@ points — never admin rights or IAM credentials.
 > [docs/hardening-backlog.md](docs/hardening-backlog.md) — read it before
 > deploying beyond a demo account.
 
+**📖 [docs/WORKFLOWS.md](docs/WORKFLOWS.md)** — every workflow in this repo
+(bootstrap, the three vending engines, the deploy rung, blueprints,
+promotion) with diagrams and step-by-step operations. Start there.
+
 ## Grab what you need
 
 | Section | What it is / when you'd grab it |
@@ -23,7 +27,7 @@ points — never admin rights or IAM credentials.
 | [`bootstrap/`](bootstrap/) | Root-admin, ONE-TIME setup per pattern: Spaces, the privileged stack, and its role binding. The only place elevation is created. |
 | [`bootstrap/environments/`](bootstrap/environments/) | `for_each` over an env list → per-env Space + app-factory stack tracking `dev`/`stage`/`main` — the git-promotion (dev→stage→prod) model. |
 | [`examples/`](examples/) | `jimmy-app` — what an app repo ships (Dockerfile + `platform.yaml` shopping list). |
-| [`docs/`](docs/) | The hardening backlog — deferred security items. |
+| [`docs/`](docs/) | [WORKFLOWS.md](docs/WORKFLOWS.md) — all workflows with diagrams + operations; plus the hardening backlog. |
 
 ## The DevX progression
 
@@ -71,6 +75,7 @@ bootstrap/
 examples/
 └─ jimmy-app/                # what an app repo ships: Dockerfile + platform.yaml shopping list
 docs/
+├─ WORKFLOWS.md              # every workflow: stages, run lifecycle, diagrams + operations
 └─ hardening-backlog.md      # deferred security items — READ THIS
 ```
 
