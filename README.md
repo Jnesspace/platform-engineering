@@ -21,8 +21,9 @@ points — never admin rights or IAM credentials.
 | [`roles/`](roles/) | RBAC as code: requester / approver / reader roles for the governed workflows. |
 | [`worker-pools/`](worker-pools/) | Private worker pools for the elevated (engine/factory) stacks. |
 | [`bootstrap/`](bootstrap/) | Root-admin, ONE-TIME setup per pattern: Spaces, the privileged stack, and its role binding. The only place elevation is created. |
+| [`bootstrap/environments/`](bootstrap/environments/) | `for_each` over an env list → per-env Space + app-factory stack tracking `dev`/`stage`/`main` — the git-promotion (dev→stage→prod) model. |
 | [`examples/`](examples/) | `jimmy-app` — what an app repo ships (Dockerfile + `platform.yaml` shopping list). |
-| [`docs/`](docs/) | The nonadmin-launcher privilege memo and the hardening backlog. |
+| [`docs/`](docs/) | The hardening backlog — deferred security items. |
 
 ## The DevX progression
 
@@ -64,12 +65,12 @@ blueprints/                  # Spacelift Blueprints: same modules, filled via a 
 roles/                       # RBAC as code: requester/approver/reader
 worker-pools/                # private worker pools for elevated stacks
 bootstrap/
+├─ environments/             # for_each over an env list: per-env Space + app-factory stack tracking dev/stage/main (git-promotion model)
 ├─ iam-factory/              # root-admin, one-time: platform-admin Space + factory stack + role binding
 └─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, role binding, team role
 examples/
 └─ jimmy-app/                # what an app repo ships: Dockerfile + platform.yaml shopping list
 docs/
-├─ nonadmin-launcher-privilege-memo.md   # design memo: why the binding, verified against the API
 └─ hardening-backlog.md      # deferred security items — READ THIS
 ```
 

@@ -122,7 +122,7 @@ non-admin could edit the template to elevate themselves).
 **The resolution is to decouple *creating* the elevation (admin, once) from
 *using* it (non-admin, always).** The elevation is bound to the stack by an
 admin; users only trigger. Both patterns here are built on exactly that split.
-See `patterns/nonadmin-launcher/README.md` and `docs/nonadmin-launcher-privilege-memo.md`.
+See `patterns/nonadmin-launcher/README.md`.
 
 ---
 

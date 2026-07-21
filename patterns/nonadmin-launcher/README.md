@@ -110,5 +110,4 @@ The shopping list is git-tracked YAML (`engine/requests/*.yaml`), matching
 `patterns/iam-factory`'s `services/` — teams add reviewed-in-git data, never
 code. Deferred hardening (branch protection, approval/push/plan policies,
 private worker pool) is tracked in
-[`docs/hardening-backlog.md`](../../docs/hardening-backlog.md). Full design
-rationale: [`docs/nonadmin-launcher-privilege-memo.md`](../../docs/nonadmin-launcher-privilege-memo.md).
+[`docs/hardening-backlog.md`](../../docs/hardening-backlog.md).
