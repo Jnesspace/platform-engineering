@@ -1,27 +1,36 @@
-# Spacelift Blueprint: deploy a whole app's resources via patterns/app-factory —
-# the same engine and modules/aws/* the GitOps platform.yaml path uses, filled
-# via a form. The target Space must have the AWS integration attached (as the
-# app-factory stack does).
-name: app
-description: >-
-  Deploy a standard app's cloud resources (object storage + secret + a scoped
-  app IAM role) without writing Terraform. Creates a stack rooted at
-  patterns/app-factory, driven by an inline shopping list built from the form —
-  the exact engine and modules the GitOps shopping-list path composes.
-
+# Blueprint template body. Deploys a whole app (bucket + secret + one scoped app
+# IAM role) via patterns/app-factory, AWS integration attached. Add database/
+# compute to the shopping list below when needed.
 inputs:
   - id: app_name
     name: App name
-    description: Lowercase letters/digits/hyphens (e.g. acme-billing). Prefixes every resource.
+    description: Lowercase letters/digits/hyphens; prefixes every resource.
     type: short_text
   - id: team
     name: Owning team
     type: short_text
+  - id: aws_integration_id
+    name: AWS integration ID
+    type: short_text
+    default: "01JV4YKENC7KXV3MNBYPSH88AX"
+  - id: space_id
+    name: Space
+    type: short_text
+    default: root
+  - id: region
+    name: AWS region
+    type: select
+    options:
+      - us-east-1
+      - us-east-2
+      - us-west-2
+      - eu-west-1
+    default: us-east-1
 
 stack:
   name: app-${{ inputs.app_name }}
-  space: root
-  description: App ${{ inputs.app_name }} resources, requested via Blueprint by ${{ inputs.team }}.
+  space: ${{ inputs.space_id }}
+  description: App ${{ inputs.app_name }} resources, via Blueprint by ${{ inputs.team }}.
   labels:
     - blueprint
     - app-factory
@@ -32,14 +41,21 @@ stack:
     repository: platform-engineering
     branch: main
     project_root: patterns/app-factory
-  environment:
-    variables:
-      # Inline shopping list built from the form — consumed by app-factory's shopping_list_yaml.
-      - name: TF_VAR_shopping_list_yaml
-        value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { object_storage: [{ name: uploads }], secrets: [{ name: app-secrets }] } }'
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
   vendor:
     terraform:
       manage_state: true
       version: "1.5.7"
+  attachments:
+    clouds:
+      aws:
+        id: ${{ inputs.aws_integration_id }}
+        read: true
+        write: true
+  environment:
+    variables:
+      - name: TF_VAR_shopping_list_yaml
+        value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { object_storage: [{ name: uploads }], secrets: [{ name: app-secrets }] } }'
+      - name: TF_VAR_region
+        value: ${{ inputs.region }}
+      - name: AWS_DEFAULT_REGION
+        value: ${{ inputs.region }}

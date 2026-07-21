@@ -1,31 +1,35 @@
-# Spacelift Blueprint: the non-developer / ticketing path for an EC2 instance (modules/aws/compute).
-name: compute
-description: >-
-  Request a small EC2 instance without writing Terraform. Creates a stack whose
-  root is modules/aws/compute, with the form inputs passed as TF_VAR_* — the
-  exact module app-factory composes.
-
+# Blueprint template body. Deploys an EC2 instance via patterns/app-factory
+# (modules/aws/compute), AWS integration attached.
 inputs:
-  - id: instance_name
-    name: Instance name
-    description: Logical name; used for the Name tag and derived resource names.
+  - id: app_name
+    name: App name
+    description: Lowercase letters/digits/hyphens; prefixes the resource.
     type: short_text
   - id: team
     name: Owning team
-    description: Used for the stack description and the instance's team tag.
     type: short_text
-  - id: instance_type
-    name: Instance type
+  - id: aws_integration_id
+    name: AWS integration ID
+    type: short_text
+    default: "01JV4YKENC7KXV3MNBYPSH88AX"
+  - id: space_id
+    name: Space
+    type: short_text
+    default: root
+  - id: region
+    name: AWS region
     type: select
     options:
-      - t3.micro
-      - t3.small
-    default: t3.micro
+      - us-east-1
+      - us-east-2
+      - us-west-2
+      - eu-west-1
+    default: us-east-1
 
 stack:
-  name: compute-${{ inputs.instance_name }}
-  space: root
-  description: EC2 instance ${{ inputs.instance_name }}, requested via Blueprint by ${{ inputs.team }}.
+  name: compute-${{ inputs.app_name }}
+  space: ${{ inputs.space_id }}
+  description: EC2 instance for ${{ inputs.app_name }}, via Blueprint by ${{ inputs.team }}.
   labels:
     - blueprint
     - compute
@@ -35,16 +39,22 @@ stack:
     provider: GITHUB
     repository: platform-engineering
     branch: main
-    project_root: modules/aws/compute
-  environment:
-    variables:
-      - name: TF_VAR_name
-        value: ${{ inputs.instance_name }}
-      - name: TF_VAR_instance_type
-        value: ${{ inputs.instance_type }}
-      - name: TF_VAR_tags
-        value: '{ team = "${{ inputs.team }}", managed_by = "blueprint" }'
+    project_root: patterns/app-factory
   vendor:
     terraform:
       manage_state: true
       version: "1.5.7"
+  attachments:
+    clouds:
+      aws:
+        id: ${{ inputs.aws_integration_id }}
+        read: true
+        write: true
+  environment:
+    variables:
+      - name: TF_VAR_shopping_list_yaml
+        value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { compute: [{ name: worker }] } }'
+      - name: TF_VAR_region
+        value: ${{ inputs.region }}
+      - name: AWS_DEFAULT_REGION
+        value: ${{ inputs.region }}
