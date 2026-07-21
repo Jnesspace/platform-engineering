@@ -15,3 +15,9 @@ variable "initial_value" {
   default     = ""
   sensitive   = true
 }
+
+variable "rotation_days" {
+  description = "When > 0, generate the secret value in-module and rotate it every N days (replaces initial_value). 0 disables rotation."
+  type        = number
+  default     = 0
+}

@@ -1,19 +1,30 @@
 # Blueprints — the non-dev / ticketing path
 
-**Same modules, filled via a form.** This is the dual-purpose proof for
-[`modules/`](../modules): a developer orders a primitive through the
-app-factory shopping list; a non-developer (or a ticket) orders the *identical*
-primitive through a Spacelift Blueprint form. One opinionated implementation,
-two front doors — the guardrails (safe defaults, least-privilege access hooks)
-travel with the module, not the entry point.
+**Self-service from a form, same modules underneath.** Each blueprint here is a
+click-to-deploy catalog item. A non-developer fills a short form; Spacelift
+creates a stack that runs `patterns/app-factory` (the same `modules/aws/*` the
+GitOps path composes), with the AWS integration attached and an inline shopping
+list built from the form.
 
-| blueprint | creates | inputs |
+| blueprint | deploys | inputs |
 |---|---|---|
-| [`object-storage.yaml`](object-storage.yaml) | S3 bucket via `modules/aws/object-storage` | bucket_name, team, force_destroy |
-| [`database.yaml`](database.yaml) | RDS PostgreSQL via `modules/aws/database` | db_name, team, instance_class |
-| [`secrets.yaml`](secrets.yaml) | Secrets Manager secret via `modules/aws/secrets` | secret_name, team, initial_value |
-| [`compute.yaml`](compute.yaml) | EC2 instance via `modules/aws/compute` | instance_name, team, instance_type |
+| [`object-storage.yaml`](object-storage.yaml) | an S3 bucket | app_name, team, aws_integration_id, space, region |
+| [`database.yaml`](database.yaml) | a Postgres database | app_name, team, aws_integration_id, space, region |
+| [`secrets.yaml`](secrets.yaml) | a Secrets Manager secret | app_name, team, aws_integration_id, space, region |
+| [`compute.yaml`](compute.yaml) | an EC2 instance | app_name, team, aws_integration_id, space, region |
+| [`app.yaml`](app.yaml) | a whole app (bucket + secret + one scoped IAM role) | app_name, team, aws_integration_id, space, region |
 
-This is rung 5 of the DevX ladder (golden path / ticketing done right): the
-Blueprint sits *on top of* the same module catalog — it never becomes a second
-implementation to keep in sync.
+Each file is a Blueprint **template body** (`inputs:` + `stack:`); the name and
+description live on the published Blueprint entity.
+
+## Publish them
+[`../bootstrap/blueprints/`](../bootstrap/blueprints) publishes this catalog as
+live, deployable Spacelift Blueprints (`terraform apply` with a root-admin key).
+
+## The tradeoff (important)
+Deploying a blueprint creates a stack that **references the modules and injects
+variables** — it does **not** commit generated Terraform back to git. When a
+reviewable repo artifact is required (security scan, audit), use the GitOps
+shopping-list path (`platform.yaml` → `app-factory`) instead: there the
+committed YAML *is* the source of truth. Blueprints suit the no-code tier; the
+shopping list suits teams that need the code in git. Same modules either way.

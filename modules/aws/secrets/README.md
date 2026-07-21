@@ -9,6 +9,9 @@ A Secrets Manager secret (optionally seeded with an initial value), plus a read-
 | `name` | `string` | — (required) | Secret name. |
 | `tags` | `map(string)` | `{}` | Tags applied to all resources. |
 | `initial_value` | `string` (sensitive) | `""` | Optional first version; when empty, set the value out-of-band. |
+| `rotation_days` | `number` | `0` | When > 0, generate the value in-module and rotate it every N days (replaces `initial_value`); `0` = off. |
+
+Rotation only takes effect on an apply after the window elapses — pair with `schedules/secret-rotation` to fire it on a cron.
 
 ## Outputs
 

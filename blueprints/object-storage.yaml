@@ -1,33 +1,38 @@
-# Spacelift Blueprint: the non-developer / ticketing path for object storage.
-# Same module the app-factory shopping list uses (modules/aws/object-storage) —
-# here its inputs are filled via a form instead of a platform.yaml.
-#
-# Note: in Spacelift the blueprint's name/description are set on the Blueprint
-# entity; they are duplicated here so the file is self-describing.
-name: object-storage
-description: >-
-  Request an S3 bucket (versioned, all public access blocked) without writing
-  Terraform. Creates a stack whose root is modules/aws/object-storage, with the
-  form inputs passed as TF_VAR_* — the exact module app-factory composes.
-
+# Blueprint template body (inputs + stack). Name/description live on the
+# spacelift_blueprint entity (bootstrap/blueprints). Deploys via patterns/app-factory
+# — the same modules the GitOps shopping list uses — with the AWS integration attached.
 inputs:
-  - id: bucket_name
-    name: Bucket name
-    description: Globally unique, lowercase letters/digits/hyphens (e.g. acme-billing-uploads).
+  - id: app_name
+    name: App name
+    description: Lowercase letters/digits/hyphens; prefixes the resource.
     type: short_text
   - id: team
     name: Owning team
-    description: Used for the stack description and the bucket's team tag.
     type: short_text
-  - id: force_destroy
-    name: Allow destroy while objects remain (throwaway environments only)
-    type: boolean
-    default: false
+  - id: aws_integration_id
+    name: AWS integration ID
+    description: Spacelift AWS integration used to deploy.
+    type: short_text
+    default: "01JV4YKENC7KXV3MNBYPSH88AX"
+  - id: space_id
+    name: Space
+    description: Spacelift Space the new stack lands in (must access the AWS integration).
+    type: short_text
+    default: root
+  - id: region
+    name: AWS region
+    type: select
+    options:
+      - us-east-1
+      - us-east-2
+      - us-west-2
+      - eu-west-1
+    default: us-east-1
 
 stack:
-  name: object-storage-${{ inputs.bucket_name }}
-  space: root
-  description: S3 bucket ${{ inputs.bucket_name }}, requested via Blueprint by ${{ inputs.team }}.
+  name: s3-${{ inputs.app_name }}
+  space: ${{ inputs.space_id }}
+  description: S3 bucket for ${{ inputs.app_name }}, via Blueprint by ${{ inputs.team }}.
   labels:
     - blueprint
     - object-storage
@@ -37,16 +42,22 @@ stack:
     provider: GITHUB
     repository: platform-engineering
     branch: main
-    project_root: modules/aws/object-storage
-  environment:
-    variables:
-      - name: TF_VAR_name
-        value: ${{ inputs.bucket_name }}
-      - name: TF_VAR_force_destroy
-        value: ${{ inputs.force_destroy }}
-      - name: TF_VAR_tags
-        value: '{ team = "${{ inputs.team }}", managed_by = "blueprint" }'
+    project_root: patterns/app-factory
   vendor:
     terraform:
       manage_state: true
       version: "1.5.7"
+  attachments:
+    clouds:
+      aws:
+        id: ${{ inputs.aws_integration_id }}
+        read: true
+        write: true
+  environment:
+    variables:
+      - name: TF_VAR_shopping_list_yaml
+        value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { object_storage: [{ name: uploads }] } }'
+      - name: TF_VAR_region
+        value: ${{ inputs.region }}
+      - name: AWS_DEFAULT_REGION
+        value: ${{ inputs.region }}

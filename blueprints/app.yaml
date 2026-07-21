@@ -1,0 +1,61 @@
+# Blueprint template body. Deploys a whole app (bucket + secret + one scoped app
+# IAM role) via patterns/app-factory, AWS integration attached. Add database/
+# compute to the shopping list below when needed.
+inputs:
+  - id: app_name
+    name: App name
+    description: Lowercase letters/digits/hyphens; prefixes every resource.
+    type: short_text
+  - id: team
+    name: Owning team
+    type: short_text
+  - id: aws_integration_id
+    name: AWS integration ID
+    type: short_text
+    default: "01JV4YKENC7KXV3MNBYPSH88AX"
+  - id: space_id
+    name: Space
+    type: short_text
+    default: root
+  - id: region
+    name: AWS region
+    type: select
+    options:
+      - us-east-1
+      - us-east-2
+      - us-west-2
+      - eu-west-1
+    default: us-east-1
+
+stack:
+  name: app-${{ inputs.app_name }}
+  space: ${{ inputs.space_id }}
+  description: App ${{ inputs.app_name }} resources, via Blueprint by ${{ inputs.team }}.
+  labels:
+    - blueprint
+    - app-factory
+  administrative: false
+  auto_deploy: false
+  vcs:
+    provider: GITHUB
+    repository: platform-engineering
+    branch: main
+    project_root: patterns/app-factory
+  vendor:
+    terraform:
+      manage_state: true
+      version: "1.5.7"
+  attachments:
+    clouds:
+      aws:
+        id: ${{ inputs.aws_integration_id }}
+        read: true
+        write: true
+  environment:
+    variables:
+      - name: TF_VAR_shopping_list_yaml
+        value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { object_storage: [{ name: uploads }], secrets: [{ name: app-secrets }] } }'
+      - name: TF_VAR_region
+        value: ${{ inputs.region }}
+      - name: AWS_DEFAULT_REGION
+        value: ${{ inputs.region }}

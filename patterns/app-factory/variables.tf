@@ -4,6 +4,12 @@ variable "shopping_list_file" {
   default     = "../../examples/jimmy-app/platform.yaml"
 }
 
+variable "shopping_list_yaml" {
+  description = "Inline shopping list (YAML). When set, used instead of shopping_list_file — the Blueprint/form path."
+  type        = string
+  default     = ""
+}
+
 variable "app_name" {
   description = "Override for the app name. Empty means: use the shopping list's `name:`."
   type        = string

@@ -38,3 +38,9 @@ variable "master_username" {
   type        = string
   default     = "app_admin"
 }
+
+variable "rotation_days" {
+  description = "When > 0, regenerate the master password on the first apply after every N days. 0 disables rotation."
+  type        = number
+  default     = 0
+}
