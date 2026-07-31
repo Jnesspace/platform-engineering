@@ -1,11 +1,11 @@
 output "platform_space_id" {
   value       = spacelift_space.platform.id
-  description = "Governance plane Space."
+  description = "Governance plane Space. Pass to roles/ governed_spaces — it holds exactly one stack, so a requester bound here can trigger only the engine."
 }
 
 output "team_space_id" {
   value       = spacelift_space.team.id
-  description = "Product team Space the engine provisions into."
+  description = "Product team Space the engine provisions into. Add to bootstrap/governance policy_spaces: it does not inherit, so root policies cannot reach it."
 }
 
 output "engine_stack_id" {
@@ -13,12 +13,9 @@ output "engine_stack_id" {
   description = "The admin-owned engine stack."
 }
 
+# The one object that grants admin anywhere in this design.
 output "engine_role_binding_id" {
   value       = spacelift_role_attachment.engine_admin_on_team.id
   description = "The single privileged object: Space-admin bound to the engine, scoped to the team Space."
-}
-
-output "team_consumer_role_id" {
-  value       = spacelift_role.team_consumer.id
-  description = "Non-admin role to assign to product-team users/groups."
+  sensitive   = true
 }

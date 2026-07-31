@@ -1,0 +1,41 @@
+# Checkov runs advisory, not blocking — hence soft-fail.
+#
+# Why advisory: on a *module library* most checkov findings are the consumer's
+# decision, not the module's. "Enable cross-region replication" is a correct
+# recommendation for a production bucket and wrong for a module that also has to
+# serve ephemeral demo environments. A blocking gate made of those findings is a
+# gate that gets bypassed, and the bypass habit then covers the findings that
+# matter. So: report every run, block nothing, and promote individual checks
+# into the blocking set as the module contracts firm up.
+soft-fail: true
+
+directory:
+  - .
+
+framework:
+  - terraform
+  - dockerfile
+# Deliberately not `github_actions`: checkov 3.3.8 produced no findings and no
+# scan section for .github/workflows even on an explicit --file, so listing it
+# would advertise coverage that does not exist. The workflows are covered by
+# actionlint and .github/scripts/check-action-pins.sh instead, both verified.
+
+skip-path:
+  - \.terraform
+  - ^bakes/
+
+# Never resolve `source = "git::..."`/registry modules over the network during a
+# scan: it turns a static analysis job into arbitrary remote fetch, and every
+# module in this repo is a local relative path anyway.
+download-external-modules: false
+
+compact: true
+quiet: true
+
+skip-check:
+  # Replication and event notifications are properties of a specific bucket's
+  # role in a specific system. A generic object-storage wrapper that forced
+  # either would be unusable for the ephemeral-environment path this repo also
+  # ships, and the check can never be satisfied *in the module*.
+  - CKV_AWS_144  # S3 cross-region replication
+  - CKV2_AWS_62  # S3 event notifications

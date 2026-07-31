@@ -1,0 +1,14 @@
+{
+  "name": "@platform/infra-review-agent",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "PoC infrastructure review agent that runs as a Spacelift after_plan hook and reviews plans with an Anthropic model.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "node --check agent.mjs",
+    "test": "node test/smoke.mjs && node test/leak.mjs"
+  }
+}

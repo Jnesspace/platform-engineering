@@ -1,0 +1,27 @@
+title = "platform-engineering — credential scanning (blocking)"
+
+# Upstream ruleset, not a hand-rolled one: gitleaks' default rules are
+# maintained far better than anything this repo would carry, and this file's
+# only job is to keep them from firing on things that aren't source of truth.
+#
+# Scope: real credentials — keys, tokens, private keys, connection strings.
+# Account-identifying literals (AWS account numbers, Spacelift entity ids) are
+# also a real problem here, but they are hygiene rather than "revoke it now",
+# so they live in .github/gitleaks-hygiene.toml and run as an advisory check.
+# Promotion path: once those literals are variables, fold the hygiene rules in
+# here and delete the advisory job.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that are not source of truth"
+# gitleaks reads the filesystem, not the git index, so it happily scans
+# gitignored local artifacts. Everything .gitignore covers has to be repeated
+# here or every developer's local run reports a finding in their own scratch
+# output and they stop trusting the hook.
+paths = [
+  '''(^|/)\.terraform/''',
+  '''(^|/)\.terraform\.lock\.hcl$''',
+  '''^bakes/''',
+  '''^fast\.yaml$''',
+]

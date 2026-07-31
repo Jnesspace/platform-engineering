@@ -1,0 +1,76 @@
+title = "platform-engineering — account-identifying literals (advisory)"
+
+# Separate from .gitleaks.toml because these findings are advisory, not blocking.
+#
+# Why they exist at all: this repo has shipped a live Spacelift AWS integration
+# ULID as a variable default and a live 12-digit AWS account number in the demo
+# walkthrough. Neither is a credential, so no upstream gitleaks rule fires on
+# either — but both are account-identifying, and in a public reference repo an
+# account number next to a documented role-naming convention is a targeting aid.
+#
+# Why advisory: the known instances live in .tf, .yaml, .rego and .md files, so a
+# blocking check would be red the day it lands, and a red gate that nobody can
+# clear gets deleted. There is deliberately no path allowlist for the known
+# files — the check reports them on every run, which is more pressure than a
+# silent suppression, and the count only goes down.
+#
+# Note on regexes: gitleaks matches with RE2. No backreferences, no lookaround.
+# An unsupported pattern is a hard panic at config-load time, not a validation
+# error, so alternations get spelled out.
+[extend]
+useDefault = false
+
+[allowlist]
+description = "Paths that are not source of truth"
+paths = [
+  '''(^|/)\.terraform/''',
+  '''(^|/)\.terraform\.lock\.hcl$''',
+  '''^bakes/''',
+  '''^fast\.yaml$''',
+  # Local state is full of real entity ids and is gitignored, so it is never
+  # published and never reaches CI — but gitleaks reads the filesystem, so a
+  # developer's own state file would otherwise account for most of the findings
+  # in a local run. Note that .gitleaks.toml (the blocking config) deliberately
+  # does NOT allowlist state: a *committed* tfstate is the worst case, not noise.
+  '''\.tfstate($|\.)''',
+]
+
+[[rules]]
+id = "aws-account-id-literal"
+description = "Hardcoded 12-digit AWS account id — use a variable or a documentation placeholder"
+regex = '''(?i)(?:aws_account_id|account_id|owner_id|arn:aws[a-z-]*:[a-z0-9-]*:[a-z0-9-]*:)["'\s:=]{0,6}(\d{12})\b'''
+secretGroup = 1
+tags = ["aws", "account-id"]
+[rules.allowlist]
+regexTarget = "match"
+# AWS's own documentation placeholders, plus the repeated-digit forms. If a
+# reader cannot tell a real account from an example, the example is the bug — so
+# use one of these in docs, tests and module descriptions.
+regexes = [
+  '''\b(?:123456789012|111122223333|444455556666|777788889999|012345678901)\b''',
+  '''\b(?:000000000000|111111111111|222222222222|333333333333|444444444444|555555555555|666666666666|777777777777|888888888888|999999999999)\b''',
+]
+
+# Matches the ULID *shape* anywhere, rather than `integration_id = "…"`, because
+# the first version of this rule only understood HCL assignment and missed five
+# `default:` values in blueprints/*.yaml and a dozen ULIDs embedded in longer
+# strings ("payments-01JV4…"). Spacelift ids leak by being pasted, not by being
+# assigned.
+#
+# 26 characters of Crockford base32 (no I, L, O, U), first character 0-7. Narrow
+# enough not to collide with the 40-hex action pins or the 64-hex tool checksums,
+# which are lowercase.
+[[rules]]
+id = "spacelift-ulid-literal"
+description = "Hardcoded Spacelift entity ULID (integration/space/stack id) — use a variable or a placeholder ULID"
+regex = '''\b([0-7][0-9A-HJKMNP-TV-Z]{25})\b'''
+tags = ["spacelift", "entity-id"]
+[rules.allowlist]
+regexTarget = "match"
+regexes = [
+  # The repo's placeholder convention: the base32 alphabet in order, with a
+  # two-digit suffix. Obviously synthetic at a glance, which is the point.
+  '''^01ABCDEFGHJKMNPQRSTVWXYZ[0-9]{2}$''',
+  '''(?i)REPLACE|EXAMPLE|CHANGEME|XXXX''',
+  '''^0{26}$''',
+]

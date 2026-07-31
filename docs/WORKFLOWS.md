@@ -187,10 +187,13 @@ Common operations (iam-factory and nonadmin-launcher):
    `TF_VAR_vended_project_root`.
 7. iam-factory only: attach the AWS integration (read + write) so factory runs
    can mint IAM roles.
-8. nonadmin-launcher only: create the non-admin `team_consumer` role
-   (`SPACE_READ`, `RUN_TRIGGER`, `RUN_CONFIRM` — no `SPACE_ADMIN`, no
-   `STACK_UPDATE`); its stack-scoped attachment to real users/groups is
-   activated separately.
+8. Non-admin team access comes from [`roles/`](../roles), not from this root.
+   It defines `requester` (`SPACE_READ`, `RUN_TRIGGER`) and `approver`
+   (`SPACE_READ`, `RUN_CONFIRM`) as **separate** roles bound to separate IdP
+   groups — neither holds `SPACE_ADMIN` or `STACK_UPDATE`. The combined
+   `team_consumer` role this root used to create is gone: holding both
+   `RUN_TRIGGER` and `RUN_CONFIRM` made the confirm gate self-approvable, which
+   was hardening-backlog item 2.
 
 Other bootstrap roots:
 
@@ -306,12 +309,22 @@ Operations:
    Terraform eagerly configures every declared provider).
 3. `for_each` over each resource kind instantiates the matching module —
    `object_storage`, `secrets`, `database`, `compute` — naming everything
-   `<app_name>-<resource-name>` and tagging `app` + `managed_by: app-factory`.
+   `<app_name>-<resource-name>` and tagging `app`, `managed_by: app-factory`,
+   plus the `Environment` / `Owner` / `Project` trio that
+   `policies/plan/enforce-required-tags.rego` requires. `Environment` and
+   `Owner` come from **stack** variables, not the shopping list: a team naming
+   its own env would be claiming the privilege `protect-env-labels.rego` guards.
 4. `iam.tf` merges each module's `iam_policy_json` output into one map, keyed
    `s3-<name>` / `secret-<name>` / `db-<name>` (compute contributes no
    policy).
-5. One **`aws_iam_role.app`** (`<app_name>-app`) is created — EC2 trust as the
-   simple default; the k8s rung swaps in IRSA trust.
+5. One **`aws_iam_role.app`** (`<app_name>-app`) is created. Trust is
+   **IRSA by default** (`var.trust_mode = "irsa"`): `sts:AssumeRoleWithWebIdentity`
+   federated to the EKS cluster's OIDC provider, with `StringEquals` — never
+   `StringLike` — pinning `:sub` to the exact `system:serviceaccount:<ns>:<sa>`
+   that app-deploy creates. A wildcard there would hand this role to every pod in
+   the cluster. `trust_mode = "ec2"` is the explicit opt-in for the non-Kubernetes
+   case, and a plan-time gate rejects the combinations that would mint a role no
+   workload can assume.
 6. Each aggregated policy attaches to that single role as an inline
    `aws_iam_role_policy` — the app gets exactly what its resources grant,
    nothing more.
@@ -370,7 +383,7 @@ sequenceDiagram
 
     Note over Engine: bootstrap bound space-admin to the STACK, scoped to the team Space
     User->>SL: add requests slug.yaml via PR, or trigger the engine
-    Note over User: team role grants only SPACE_READ, RUN_TRIGGER, RUN_CONFIRM
+    Note over User: requester grants only SPACE_READ + RUN_TRIGGER — a different person confirms
     SL->>Engine: run starts with injected SPACELIFT_API_TOKEN carrying the stack binding
     Engine->>Engine: read requests yaml files, validate slugs
     Engine->>User: run pauses UNCONFIRMED
@@ -382,9 +395,10 @@ sequenceDiagram
 Operations:
 
 1. Precondition (from bootstrap): the engine stack has `space-admin` bound to
-   **the stack**, scoped to the team Space; team members hold `team_consumer`
-   (`SPACE_READ`, `RUN_TRIGGER`, `RUN_CONFIRM` — cannot edit env or attach
-   roles).
+   **the stack**, scoped to the team Space. Team members hold `requester`
+   (`SPACE_READ`, `RUN_TRIGGER`) — they cannot edit env or attach roles, and
+   crucially cannot confirm their own run; that needs someone in the `approver`
+   group. See [`roles/`](../roles).
 2. A team member adds `requests/<slug>.yaml` (data, not code — just `name` and
    an optional `project_root` override) via PR, or triggers the engine run
    directly.
@@ -478,11 +492,11 @@ Operations:
 3. Day-to-day: merge work to `dev` — `app-factory-dev` runs and **applies
    unattended**.
 4. Promote to stage: merge `dev` into `stage` — `app-factory-stage` plans and
-   pauses **UNCONFIRMED**; a human (subject to the APPROVAL policies)
-   confirms.
+   pauses **UNCONFIRMED**; a human (subject to the APPROVAL policy) confirms,
+   and it cannot be the person who triggered the run.
 5. Promote to prod: merge `stage` into `main` — same gate on
-   `app-factory-prod`; stacks labeled `env:prod` can additionally require two
-   approvals via `policies/approval/require-prod-approval.rego`.
+   `app-factory-prod`, and stacks labeled `env:prod` require **two** approvals
+   rather than one, via `policies/approval/require-approval.rego`.
 6. Isolation note: all three envs share one demo AWS integration here; real
    isolation is each env pointing `aws_integration_id` at **its own AWS
    account**.
@@ -494,20 +508,24 @@ not in engine code.
 
 | Item | Type | When it fires | What it enforces |
 |---|---|---|---|
+| `bootstrap/governance/` | delivery plane | `terraform apply` | **publishes and attaches every policy below.** Discovers `policies/<type>/*.rego` with `fileset()`, derives the type from the directory, and auto-attaches by label. Its own plan fails if any `elevated` stack lacks a private worker pool, deletion protection, or policy reach |
 | `policies/plan/enforce-required-tags.rego` | PLAN | every plan | deny resources created/updated without `Environment`, `Project`, `Owner` tags |
-| `policies/plan/deny-privileged-iam.rego` | PLAN | every plan | deny creating Spacelift roles/role attachments and long-lived IAM users/keys — request via the platform team |
-| `policies/plan/cap-new-resources.rego` | PLAN | every plan | deny plans creating more than 25 resources at once |
+| `policies/plan/deny-privileged-iam.rego` | PLAN | every plan | deny creating Spacelift roles/role attachments and long-lived IAM users/keys. The root-admin bootstrap layer is exempted via `project_root` under `bootstrap/` — a control-plane stack setting an engine cannot forge |
+| `policies/plan/cap-new-resources.rego` | PLAN | every plan | blast-radius fuse, two independent caps: **25** cloud resources, **75** Spacelift control-plane objects. Privilege types (roles, attachments, users, API keys, worker pools) stay under the strict 25 |
 | `policies/plan/protect-env-labels.rego` | PLAN | every plan | deny stack updates that add/remove `env:*` labels (the promotion lanes) |
-| `policies/approval/deny-self-approval.rego` | APPROVAL | UNCONFIRMED runs | at least one approval from someone other than the triggerer; any rejection blocks |
-| `policies/approval/require-prod-approval.rego` | APPROVAL | UNCONFIRMED runs | `env:prod` stacks need two approvals and zero rejections; others auto-approve |
+| `policies/plan/launcher-engine-guardrail.rego` | PLAN | launcher engine runs | caps what an engine run may produce: resource-type allowlist, ≤10 stacks, one target Space, never `root`, no privileged labels, no vending into `bootstrap/`. Holds even if the engine's own Terraform is rewritten |
+| `policies/plan/iam-factory-guardrail.rego` | PLAN | factory runs | constrains the *shape* of a factory run — the third layer beneath the engine's own catalog gate and permissions boundary, both of which vanish if that code is edited |
+| `policies/plan/iam-factory-trust-boundary.rego` | PLAN | factory runs | reads the actual IAM JSON in the plan: catches an off-catalog grant, an OIDC `sub` not pinned to one Space, a non-Federated principal, or a missing/weakened permissions boundary |
+| `policies/approval/require-approval.rego` | APPROVAL | UNCONFIRMED runs | one approval from someone other than the triggerer; **two** on `env:prod`; any rejection blocks. Deliberately **one** policy — Spacelift OR-combines same-type policies, and the previous two composed into a bypass in both directions |
 | `policies/push/track-intended-changes.rego` | GIT_PUSH | every push/PR | track only pushes to the stack's branch touching its project root; propose PRs targeting it; ignore the rest |
 | `policies/push/ignore-untrusted-authors.rego` | GIT_PUSH | every PR | propose runs only for same-repo PRs from trusted authors; ignore forks/unknowns |
+| `policies/push/proposed-run-safety.rego` | GIT_PUSH | PRs on elevated stacks | withholds the proposed run when the PR is unreviewed, or when it edits how the run itself executes (`.spacelift/`, `*.custom.spacelift.json`). Plan-time RCE defence; restrictive only — it never grants track/propose |
 | `policies/login/map-idp-groups.rego` | LOGIN | every session | platform team logs in admin; teams get space-admin on `team:<name>` Spaces; `shared` Spaces read-only |
-| `policies/access/team-space-access.rego` | ACCESS | every stack view | write on stacks labeled `team:<name>`, read on `visibility:org`, else hidden |
 | `policies/trigger/trigger-dependencies.rego` | TRIGGER | after tracked FINISHED | trigger every stack labeled `depends-on:<this stack id>` |
-| `policies/notification/notify-failed-runs.rego` | NOTIFICATION | run state change | non-proposed FAILED runs post to the platform Slack channel with the run link |
-| `roles/main.tf` | RBAC | attached to users/groups | `requester` (trigger, no confirm) / `approver` (confirm, no trigger) — breaks self-approval; `reader` read-only; `consumer` is the self-approvable combo kept for comparison |
-| `worker-pools/main.tf` | worker pool | engine/factory runs | private `elevated-engines` pool keeps elevated stacks' tokens off shared workers |
+| `policies/notification/notify-failed-runs.rego` | NOTIFICATION | run state change | non-proposed FAILED runs post to the platform Slack channel with the run link. Not published at all unless `slack_channel_id` is set — a wrong channel fails silently |
+| `policies/access/team-space-access.rego` | ACCESS | — | **INERT.** Spacelift disabled ACCESS, TASK and INITIALIZATION policies on 2026-05-30; `bootstrap/governance` refuses to publish retired types. Kept as the record; the live equivalent is the `roles` rule in the LOGIN policy |
+| `roles/main.tf` | RBAC | bound to IdP groups | `requester` (trigger, no confirm) / `approver` (confirm, no trigger) / `reader` (read-only). A plan-time gate fails if one group holds both halves. The self-approvable `consumer` combo is **deleted**, not deprecated |
+| `worker-pools/main.tf` | worker pool | engine/factory runs | private `elevated-engines` pool. Every `elevated` stack sets `worker_pool_id`, and the governance audit fails the plan if one does not |
 | `schedules/secret-rotation` | scheduled run | cron | flagship: cron re-apply; `time_rotating`-keyed secrets regenerate once `rotation_days` elapses |
 | `schedules/scheduled-run` | scheduled run | cron | nightly tracked run of a stack |
 | `schedules/scheduled-task` | scheduled task | cron | arbitrary command in the stack's workspace |

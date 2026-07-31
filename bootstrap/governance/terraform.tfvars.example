@@ -1,0 +1,45 @@
+# Copy to terraform.tfvars and fill in. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# THE RULE: list the account root, plus every Space that holds governed stacks and does NOT inherit
+# entities from a Space already listed. A policy is only usable by stacks in its own Space or in
+# Spaces that inherit from it, so anything unreachable is an ungoverned stack.
+#
+# Listing a Space that ALREADY inherits from a listed Space is harmful, not merely redundant:
+# NOTIFICATION policies are evaluated per Space and would fire twice.
+#
+# With this repo's defaults, the only isolated Space is the team Space from
+# bootstrap/nonadmin-launcher (inherit_entities = false):
+#   terraform -chdir=../nonadmin-launcher output team_space_id
+policy_spaces = [
+  "root",
+  "cpe-team1-01H8XXXXXXXXXXXXXXXXXXXXXX",
+]
+
+# Values that used to be hardcoded in the .rego files. policies/ ships placeholders; these are
+# substituted at publish time. The first two are REQUIRED — they back an enforcing GIT_PUSH policy
+# attached at "*", and the plan fails rather than publishing a placeholder.
+repo_owner         = "acme-platform"
+trusted_pr_authors = ["alice", "bob"]
+
+# Optional. Empty (the default) means notification/notify-failed-runs.rego is NOT published, which
+# is better than publishing it pointed at a channel that does not exist — Slack drops those
+# silently. Must be the channel ID, not the name.
+# slack_channel_id = "C0123456789"
+
+# Optional: narrow or widen a whole policy type. "*" is Spacelift's autoattach wildcard.
+# autoattach_targets = {
+#   TRIGGER = ["depends-on"]
+# }
+
+# Optional: override ONE policy, keyed "<dir>/<file name without .rego>". A rename in policies/
+# makes the key stop resolving and the plan fails — the override is never silently dropped.
+# There is exactly one APPROVAL policy on purpose (see policies/approval/require-approval.rego):
+# Spacelift OR-combines same-type policies, so a second one can only ever weaken the first.
+# policy_target_overrides = {
+#   "plan/protect-env-labels" = ["engine", "app-factory"]
+# }
+
+# Set false only to unblock an emergency; it is the check that stops an elevated stack from quietly
+# landing on shared workers or outside policy reach.
+# enforce_elevated_stack_audit = true

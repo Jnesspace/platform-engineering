@@ -1,9 +1,46 @@
 **/.terraform/
 *.tfstate
 *.tfstate.*
+.terraform.tfstate.lock.info
 .env
 crash.log
+crash.*.log
+
+# Filled-in variable files. Every terraform.tfvars.example in this repo says
+# "copy to terraform.tfvars and fill in", and the filled-in copy is account
+# identifiers and sometimes secrets. A rule beats the comment that used to ask
+# people not to commit it.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Saved plans. A plan file contains the *resolved* values of every attribute,
+# including the secrets a variable or data source pulled in — it is closer to a
+# credential dump than to a diff.
+*.tfplan
+*.tfplan.json
+plan.out
+plan.json
+
+# Terraform override files are a local-only mechanism by design: they silently
+# replace blocks in the surrounding configuration. Committed to a branch that a
+# Space-admin stack executes, an override.tf is a way to change what runs while
+# leaving main.tf looking untouched in review.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local tool caches and scanner output. CI writes these into the workspace, and
+# so does anyone running the same commands locally.
+.tflint.d/
+*.sarif
+hygiene.json
+.venv/
+venv/
 
 # cartogopher local artifacts
 bakes/
 fast.yaml
+
+.DS_Store

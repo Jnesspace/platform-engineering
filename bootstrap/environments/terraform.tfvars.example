@@ -1,0 +1,33 @@
+# Copy to terraform.tfvars and fill in. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# Bare repository name, via the default VCS (GitHub App) integration.
+repository = "platform-engineering"
+
+region = "us-east-1"
+
+# The promotion model as data: adding an entry here is the whole "add an environment" procedure.
+#
+# aws_integration_id should be ONE PER ENVIRONMENT ACCOUNT (the landing-zone model). Pointing all
+# three at the same integration works on a demo account only because the vended app is named
+# demo-<env>, so globally-unique names (S3 buckets, the OIDC provider, the boundary policy) differ.
+#
+# autodeploy = true on dev is a deliberate exception: dev applies unattended for fast iteration even
+# though app-factory is an elevated stack. stage and prod pause at the confirm gate — that confirm IS
+# the promotion gate. Prefer false everywhere if unattended IAM changes are not acceptable to you.
+#
+# demo_teardown = true ONLY on dev. It is the single posture-weakening flag: buckets get
+# force_destroy, the database gives up deletion protection and its final snapshot, and credential
+# secrets get a 0-day recovery window, so `terraform destroy` succeeds and the names free at once.
+# Omit it (default false) on any lane holding data you would miss.
+environments = {
+  dev   = { branch = "dev", autodeploy = true, aws_integration_id = "01ABCDEFGHJKMNPQRSTVWXYZ00", demo_teardown = true }
+  stage = { branch = "stage", autodeploy = false, aws_integration_id = "01ABCDEFGHJKMNPQRSTVWXYZ01" }
+  prod  = { branch = "main", autodeploy = false, aws_integration_id = "01ABCDEFGHJKMNPQRSTVWXYZ02" }
+}
+
+# Becomes the Owner tag on every vended resource. Defaults to "platform".
+# owner = "platform"
+
+# Must match worker-pools/ var.name.
+# elevated_worker_pool_name = "elevated-engines"

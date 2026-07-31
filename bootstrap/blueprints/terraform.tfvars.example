@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars and fill in. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# Space the catalog is published in; controls who sees the Deploy buttons.
+# space = "root"

@@ -1,0 +1,136 @@
+# Local parity with CI.
+#
+# Almost every hook is `repo: local` and calls the same script the workflow calls.
+# That is deliberate: a local check that is only *nearly* the same as the merge
+# gate teaches contributors to distrust both, and the usual pre-commit-terraform
+# hooks are a different implementation of the same intent — close enough to pass
+# locally and fail in CI.
+#
+#   pre-commit install --install-hooks
+#   pre-commit install --hook-type pre-push   # the slow ones, see below
+#   pre-commit run --all-files                # what CI runs, minus the matrix
+#
+# Fast hooks run on commit. `terraform init`/`validate` and `tflint` need network
+# and a provider cache, so they run on push instead — a formatter that takes four
+# minutes gets uninstalled, and then so does everything next to it.
+
+minimum_pre_commit_version: '3.5.0'
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  # Pinned to a SHA like the workflow actions, for the same reason: a pre-commit
+  # hook runs on a developer machine, which is where the cloud credentials are.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.terraform\.lock\.hcl$'
+      - id: end-of-file-fixer
+        exclude: '\.terraform\.lock\.hcl$'
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      # Terraform state is already gitignored; this is the backstop for the day
+      # someone commits it with -f. State contains resolved secret values.
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      - id: forbid-submodules
+
+  - repo: local
+    hooks:
+      # ---- fast: on commit -------------------------------------------------
+      - id: terraform-fmt
+        name: terraform fmt
+        # -check, not fix. Fixing would reformat files this commit never touched
+        # — four people are editing this tree — and -check is exactly what CI
+        # runs, so a green hook means a green check.
+        entry: terraform fmt -check -recursive -diff .
+        language: system
+        types: [terraform]
+        pass_filenames: false
+
+      - id: opa-fmt
+        name: opa fmt
+        entry: opa fmt --list --fail policies/
+        language: system
+        files: '^policies/.*\.rego$'
+        pass_filenames: false
+
+      - id: opa-check
+        name: opa check --strict
+        entry: opa check --strict policies/
+        language: system
+        files: '^policies/.*\.rego$'
+        pass_filenames: false
+
+      - id: opa-test
+        name: opa test
+        entry: opa test policies/
+        language: system
+        files: '^policies/.*\.rego$'
+        pass_filenames: false
+
+      - id: policy-structure
+        name: policy package + directory
+        entry: .github/scripts/policy-lint.sh
+        language: script
+        files: '^policies/'
+        pass_filenames: false
+
+      - id: gitleaks
+        name: gitleaks (staged)
+        # --staged, not a full scan: the point of a pre-commit hook is to stop the
+        # secret before it enters history, and history is what CI re-checks.
+        entry: .github/scripts/run-pinned.sh gitleaks git --staged --config .gitleaks.toml --no-banner --redact --exit-code 1
+        language: script
+        pass_filenames: false
+
+      - id: action-pins
+        name: workflow actions SHA-pinned
+        entry: .github/scripts/check-action-pins.sh
+        language: script
+        files: '^\.github/workflows/'
+        pass_filenames: false
+
+      - id: actionlint
+        name: actionlint
+        entry: .github/scripts/run-pinned.sh actionlint
+        language: script
+        files: '^\.github/workflows/.*\.ya?ml$'
+        pass_filenames: false
+
+      # shellcheck and yamllint via pre-commit's own pinned envs rather than
+      # `language: system`, so a developer without either installed still runs
+      # the same version CI does instead of silently skipping the hook.
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck --shell=bash --severity=style
+        language: python
+        additional_dependencies: [shellcheck-py==0.10.0.1]
+        files: '^\.github/scripts/.*\.sh$'
+
+      - id: yamllint
+        name: yamllint
+        entry: yamllint --strict -c .yamllint.yaml
+        language: python
+        additional_dependencies: [yamllint==1.38.0]
+        types: [yaml]
+
+      # ---- slow: on push ---------------------------------------------------
+      # These need the network and a warm provider cache. First run downloads a
+      # few hundred MB; after that the shared TF_PLUGIN_CACHE_DIR makes it quick.
+      - id: terraform-validate
+        name: terraform init + validate (all roots)
+        entry: .github/scripts/tf-validate.sh
+        language: script
+        types: [terraform]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: tflint
+        name: tflint (all roots)
+        entry: .github/scripts/tflint-all.sh
+        language: script
+        types: [terraform]
+        pass_filenames: false
+        stages: [pre-push]

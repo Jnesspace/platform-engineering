@@ -4,9 +4,11 @@ Governed self-service on Spacelift: the platform team owns the guardrails as
 code; product teams get real provisioning power through narrow, audited entry
 points — never admin rights or IAM credentials.
 
-> **Status: PoC.** Deferred security work is tracked in
-> [docs/hardening-backlog.md](docs/hardening-backlog.md) — read it before
-> deploying beyond a demo account.
+> **Status: PoC.** The guardrails are now implemented and verified, but nothing
+> is enforced until an operator applies the new roots and sets GitHub branch
+> protection. Two items remain genuinely open — read
+> [docs/hardening-backlog.md](docs/hardening-backlog.md) before deploying beyond
+> a demo account.
 
 **📖 [docs/WORKFLOWS.md](docs/WORKFLOWS.md)** — every workflow in this repo
 (bootstrap, the three vending engines, the deploy rung, blueprints,
@@ -20,7 +22,8 @@ promotion) with diagrams and step-by-step operations. Start there.
 | [`patterns/app-deploy/`](patterns/app-deploy/) | The k8s deploy rung: runs the app image with app-factory's outputs wired in — IRSA to the app role, bucket/secret refs as env. No static creds in the pod. |
 | [`modules/`](modules/) | Dual-purpose wrappers, `{aws,azure,gcp} × {object-storage,database,secrets,compute}`, with a uniform `id/name/endpoint/access` interface (AWS adds `iam_policy_json`). Grab when composing an engine or a Blueprint. |
 | [`schedules/`](schedules/) | Spacelift scheduling primitives: scheduled re-apply for secret rotation (flagship), nightly runs, cron tasks, ephemeral-env TTL teardown, drift detection. |
-| [`policies/`](policies/) | Centralized policy-as-code: plan, approval, push, login, access, trigger, notification. Grab when enforcing gates server-side instead of in engine code. |
+| [`policies/`](policies/) | Centralized policy-as-code: plan, approval, push, login, trigger, notification — with Rego unit tests. Grab when enforcing gates server-side instead of in engine code. |
+| [`bootstrap/governance/`](bootstrap/governance/) | The delivery plane that makes `policies/` real: discovers every `.rego`, publishes it as a live Spacelift policy, auto-attaches it, and **fails its own plan** if an `elevated` stack lacks a private worker pool, deletion protection, or policy reach. |
 | [`blueprints/`](blueprints/) | Ticketing / self-service forms: the same modules filled via a Spacelift Blueprint instead of code. |
 | [`roles/`](roles/) | RBAC as code: requester / approver / reader roles for the governed workflows. |
 | [`worker-pools/`](worker-pools/) | Private worker pools for the elevated (engine/factory) stacks. |
@@ -70,8 +73,13 @@ roles/                       # RBAC as code: requester/approver/reader
 worker-pools/                # private worker pools for elevated stacks
 bootstrap/
 ├─ environments/             # for_each over an env list: per-env Space + app-factory stack tracking dev/stage/main (git-promotion model)
+├─ governance/               # publishes + auto-attaches every policies/*.rego; audits that elevated stacks are actually governed
+├─ blueprints/               # publishes blueprints/ as live Spacelift Blueprints
 ├─ iam-factory/              # root-admin, one-time: platform-admin Space + factory stack + role binding
-└─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, role binding, team role
+└─ nonadmin-launcher/        # root-admin, one-time: Spaces, engine stack, role binding
+.github/                     # CI: fmt/validate across every root, tflint, checkov+trivy, opa test, gitleaks, SHA-pinned actions
+├─ CODEOWNERS                # platform-team review on every privilege-bearing path
+└─ BRANCH_PROTECTION.md      # the ruleset an operator must apply to main (Stage 1 today, Stage 2 with a second maintainer)
 examples/
 └─ jimmy-app/                # what an app repo ships: Dockerfile + platform.yaml shopping list
 docs/
@@ -80,5 +88,18 @@ docs/
 ```
 
 **Who owns what:** the platform team owns `bootstrap/`, `patterns/`,
-`policies/`, `roles/`, and `worker-pools/`; product teams only submit requests
-and trigger.
+`policies/`, `roles/`, `worker-pools/`, and `.github/`; product teams only
+submit requests and trigger. `.github/` is on that list deliberately — whoever
+can edit a workflow can run code in this repo's context, so CI is
+privilege-bearing too.
+
+**Apply order** (values are required variables now; see each root's
+`terraform.tfvars.example`):
+
+```
+1. worker-pools/
+2. bootstrap/iam-factory/  |  bootstrap/nonadmin-launcher/  |  bootstrap/environments/
+3. bootstrap/governance/   # takes Space IDs from step 2 and audits step 2's stacks
+4. roles/                  # takes Space IDs from step 2
+   bootstrap/blueprints/   # no ordering constraint
+```

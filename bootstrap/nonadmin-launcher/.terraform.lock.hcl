@@ -3,7 +3,7 @@
 
 provider "registry.terraform.io/spacelift-io/spacelift" {
   version     = "1.52.4"
-  constraints = "~> 1.0"
+  constraints = "~> 1.52"
   hashes = [
     "h1:tJhbI8b/h5SrMLR4ehase+ufE4os80tS6O7gIBwp4Jc=",
     "zh:36e8e748728c1474bebd6c547bd7d01d3d3c2a235ad29b124e51469e05d0441f",

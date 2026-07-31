@@ -1,4 +1,5 @@
 # App-stack request. Add a file like this and open a PR; the onboarding engine
 # vends a stack of this name into the team Space. Filename (minus .yaml) = slug.
+# `name` and `project_root` are the only keys honoured — anything else (labels
+# above all) fails the plan, and project_root must be in the engine's allowlist.
 name: app-stack-1
-# project_root: optional override; defaults to the engine's app-example workload.

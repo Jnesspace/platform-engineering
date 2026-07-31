@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in. Nothing here is account-specific by accident.
+# *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# IdP group names exactly as your SSO provider emits them.
+requester_groups = ["cpe-team1", "app-developers"]
+
+# Disjoint from requester_groups — the plan fails if a group appears in both.
+approver_groups = ["platform-engineering-leads"]
+
+reader_groups = ["security-audit"]
+
+# Space IDs (slugs) to bind in. Get them from the bootstrap roots' outputs, e.g.
+#   terraform -chdir=../bootstrap/nonadmin-launcher output platform_space_id
+governed_spaces = ["platform-01H8XXXXXXXXXXXXXXXXXXXXXX"]

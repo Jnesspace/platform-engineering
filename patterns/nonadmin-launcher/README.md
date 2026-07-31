@@ -87,6 +87,47 @@ sequenceDiagram
 | `engine/app-example/` | Placeholder workload the vended app stacks track. |
 | `../../bootstrap/nonadmin-launcher/` | The root-admin, one-time provisioning of Spaces, engine, binding, and roles. |
 
+## The request schema — data, and only the data
+
+`engine/requests/<slug>.yaml` (or `.yml`). The filename minus the extension is
+the slug; one file per slug.
+
+```yaml
+name: app-stack-1          # optional; defaults to the slug
+# project_root: <path>     # optional, and only from var.allowed_project_roots
+```
+
+Those two keys are the **whole** schema, and `terraform_data.request_gate` fails
+the plan on anything else. The engine runs with the elevated token, so the
+requests are the one thing a non-admin controls and they get treated as
+untrusted input:
+
+- **`project_root` is an allowlist.** A free-form override would let a team point
+  a vended stack at *any* directory in this repo — `bootstrap/`,
+  `patterns/iam-factory`, another team's pattern — and the vended stack would
+  then run that Terraform with whatever the team Space's integrations grant. A
+  path is a privilege decision, not a request field, so only
+  `var.vended_project_root` plus `var.allowed_project_roots` are accepted;
+  by default a request cannot override it at all.
+- **Any other key is rejected**, `labels:` above all. The access and plan
+  policies key off `env:*` and `team:*` labels, so a request that could set them
+  could route itself around the guardrails.
+- **The `env:` label is the engine's**, from `var.vended_env` — `dev` or `stage`
+  only, the lanes `bootstrap/environments` and
+  `policies/plan/protect-env-labels.rego` know about. `prod` is deliberately not
+  offered: `policies/plan/launcher-engine-guardrail.rego` treats `env:prod` as a
+  privilege claim an engine may not make. The label used to be hardcoded to
+  `env:d`, which matched no lane at all. Stacks vended before this change carry
+  `env:d`; relabelling them is itself a stack update that
+  `protect-env-labels.rego` will deny, so either set `TF_VAR_vended_env` to keep
+  the old value during migration or relabel them deliberately through the policy
+  exception path.
+- Slugs, `name`, request count (`var.max_requests`) and `.yaml`/`.yml`
+  collisions are all validated at plan time, before the elevated token creates
+  anything. The slug and name shapes and the request cap deliberately mirror
+  `policies/plan/launcher-engine-guardrail.rego`, so the in-code gate fails first
+  with a message that says what to change.
+
 ## The trust chain
 
 - **Who can change what the engine does?** Only whoever can merge to this

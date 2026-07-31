@@ -1,73 +1,27 @@
-# One-time ROOT-ADMIN bootstrap for the iam-factory: platform-admin Space, factory stack, Space-admin role bound to the stack, config + AWS integration.
-
-terraform {
-  required_providers {
-    spacelift = {
-      source  = "spacelift-io/spacelift"
-      version = "~> 1.0"
-    }
-  }
-}
-
-# Auth via SPACELIFT_API_KEY_ENDPOINT / _ID / _SECRET (a root-admin key).
-provider "spacelift" {}
-
-variable "repository" {
-  type        = string
-  default     = "platform-engineering"
-  description = "Repository backing the factory stack (default GitHub App integration)."
-}
-
-variable "branch" {
-  type        = string
-  default     = "main"
-  description = "Tracked branch for the factory stack."
-}
-
-variable "project_root" {
-  type        = string
-  default     = "patterns/iam-factory"
-  description = "Directory in the repo holding the factory code."
-}
-
-variable "account_subdomain" {
-  type        = string
-  default     = "jnesspace"
-  description = "Spacelift account subdomain; the factory's OIDC issuer/audience."
-}
-
-variable "aws_region" {
-  type        = string
-  default     = "us-east-1"
-  description = "Region for the factory's AWS provider (IAM is global; the provider still needs one)."
-}
-
-variable "aws_integration_id" {
-  type        = string
-  default     = "01JV4YKENC7KXV3MNBYPSH88AX" # `jakespace` -> acct 025897764856 (trust configured)
-  description = "AWS integration the factory runs on. The `two` integration (025897764844) is unusable: its role trust isn't configured."
-}
-
-variable "space_admin_role_id" {
-  type        = string
-  default     = null
-  description = "Optional override; if null, resolved from the system 'space-admin' role."
-}
+# One-time ROOT-ADMIN bootstrap for the iam-factory: admin-plane Space, factory stack, Space-admin
+# role bound to the STACK, config + AWS integration, private worker pool.
 
 data "spacelift_role" "space_admin" {
   slug = "space-admin"
 }
 
+# The pool is created by worker-pools/ and found by NAME, so no ULID crosses the root boundary.
+data "spacelift_worker_pools" "all" {}
+
 locals {
   space_admin_role_id = coalesce(var.space_admin_role_id, data.spacelift_role.space_admin.id)
+
+  elevated_pools          = [for p in data.spacelift_worker_pools.all.worker_pools : p if p.name == var.elevated_worker_pool_name]
+  elevated_worker_pool_id = length(local.elevated_pools) == 1 ? local.elevated_pools[0].worker_pool_id : null
 }
 
-# inherit_entities=true so the factory stack can reach the root-level AWS integration.
+# inherit_entities defaults to true so the factory stack can reach the root-level AWS integration,
+# worker pool and policy set. See README before flipping it.
 resource "spacelift_space" "platform_admin" {
-  name             = "platform-admin"
+  name             = var.space_name
   parent_space_id  = "root"
   description      = "Admin plane. The iam-factory stack lives here; every vended service Space is a child of it."
-  inherit_entities = true
+  inherit_entities = var.inherit_entities
 }
 
 # Factory stack: power comes from the role binding below; autodeploy off pauses runs at the sign-off gate.
@@ -78,15 +32,28 @@ resource "spacelift_stack" "factory" {
   branch       = var.branch
   project_root = var.project_root
   description  = "Role + Space vending machine. Reads services/*.yaml + catalog.yaml and mints scoped, OIDC-trusted AWS roles per service."
-  labels       = ["platform-factory"]
+
+  # `elevated` is the marker bootstrap/governance audits; the rest are for humans and autoattach.
+  labels = ["platform-factory", "elevated"]
 
   autodeploy              = false
   terraform_workflow_tool = "TERRAFORM_FOSS"
   terraform_version       = "1.5.7"
   protect_from_deletion   = true
+
+  # Runs carry an elevated token: keep it off shared workers and mask secret shapes in logs.
+  worker_pool_id                   = local.elevated_worker_pool_id
+  enable_well_known_secret_masking = true
+
+  lifecycle {
+    precondition {
+      condition     = local.elevated_worker_pool_id != null
+      error_message = "Expected exactly one worker pool named '${var.elevated_worker_pool_name}', found ${length(local.elevated_pools)}. Apply worker-pools/ first — an elevated token must not fall back to shared workers."
+    }
+  }
 }
 
-# The elevation: Space-admin bound to the STACK, scoped to platform-admin.
+# The elevation: Space-admin bound to the STACK, scoped to the admin plane.
 resource "spacelift_role_attachment" "factory_admin" {
   stack_id = spacelift_stack.factory.id
   role_id  = local.space_admin_role_id
@@ -110,7 +77,7 @@ resource "spacelift_environment_variable" "subdomain" {
 resource "spacelift_environment_variable" "create_oidc" {
   stack_id   = spacelift_stack.factory.id
   name       = "TF_VAR_create_oidc_provider"
-  value      = "true" # flip to false if the OIDC provider already exists in the AWS account
+  value      = tostring(var.create_oidc_provider)
   write_only = false
 }
 
@@ -127,12 +94,4 @@ resource "spacelift_aws_integration_attachment" "factory" {
   stack_id       = spacelift_stack.factory.id
   read           = true
   write          = true
-}
-
-output "platform_admin_space_id" {
-  value = spacelift_space.platform_admin.id
-}
-
-output "factory_stack_id" {
-  value = spacelift_stack.factory.id
 }

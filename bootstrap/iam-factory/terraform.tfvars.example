@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars and fill in. Every value below is account-specific — that is why none of
+# them has a default. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# The <x> in https://<x>.app.spacelift.io. Becomes the vended roles' OIDC issuer and audience.
+account_subdomain = "example-corp"
+
+# ULID of an AWS integration whose IAM role trust already accepts this Spacelift account.
+aws_integration_id = "01ABCDEFGHJKMNPQRSTVWXYZ00"
+
+aws_region = "us-east-1"
+
+# Bare repository name, via the default VCS (GitHub App) integration.
+repository = "platform-engineering"
+
+# The factory executes this branch WITH Space-admin. Branch-protect it (hardening item 1).
+# branch = "main"
+
+# Must match worker-pools/ var.name, and the pool must be reachable from this Space.
+# elevated_worker_pool_name = "elevated-engines"
+
+# Root-admin-only lever. Leave true while the AWS integration, worker pool and policy set live in
+# `root` — see README "Inheritance and hardening item 7".
+# inherit_entities = true

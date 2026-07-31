@@ -1,0 +1,80 @@
+name: policy
+
+# The Rego in policies/ *is* the server-side control surface — the plan
+# guardrail, the approval gate, the untrusted-author filter. A policy that fails
+# to compile, or that lands in the wrong package, attaches cleanly and enforces
+# nothing. That failure mode is silent in Spacelift, so it has to be loud here.
+on:
+  pull_request:
+  push:
+    branches: [main, stage, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  OPA_VERSION: 1.18.2
+
+jobs:
+  policy:
+    name: policy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1  # v2.4.0
+        with:
+          version: ${{ env.OPA_VERSION }}
+          static: true  # no libc surprises between the runner image and the pin
+
+      # Package and directory conventions first: these are the checks that catch
+      # an inert policy, which is worse than a broken one.
+      - name: structure
+        run: ./.github/scripts/policy-lint.sh
+
+      - name: opa fmt
+        if: ${{ !cancelled() }}
+        run: opa fmt --list --fail policies/
+
+      # --strict rejects unused imports and shadowed variables. Both are how a
+      # rule ends up never matching the input Spacelift actually sends.
+      - name: opa check --strict
+        if: ${{ !cancelled() }}
+        run: opa check --strict policies/
+
+      # Per-policy isolation: `opa test policies/` merges everything into one package, so a
+      # weaker sibling rule can satisfy a stricter file's tests — an artifact Spacelift never
+      # evaluates. The script also fails on any policy missing its tests/<name>_test.rego pair.
+      - name: opa test (per-policy isolation)
+        if: ${{ !cancelled() }}
+        run: ./.github/scripts/policy-test.sh
+
+      # The merged pass is not redundant: the cross-file consistency tests only make sense
+      # merged, and the deny/ignore union mirrors how Spacelift combines same-type policies.
+      - name: opa test (merged composition)
+        if: ${{ !cancelled() }}
+        run: opa test policies/ --verbose
+
+      # Coverage, not as a gate but as an answer to "is this gate proven?".
+      - name: coverage
+        if: ${{ !cancelled() }}
+        run: |
+          # Report outside the scanned tree: opa loads every file it finds under
+          # policies/, and a cov.json written in there becomes input to the run.
+          opa test policies/ --coverage --format=json >"$RUNNER_TEMP/cov.json"
+          # shellcheck disable=SC2016  # backticks are markdown in the summary
+          {
+            printf '### policy test coverage: %s%%\n\n' \
+              "$(jq -r '(.coverage * 10 | round / 10)' "$RUNNER_TEMP/cov.json")"
+            jq -r '.files | to_entries[] | "- `\(.key)` \(.value.coverage)%"' \
+              "$RUNNER_TEMP/cov.json"
+          } >>"$GITHUB_STEP_SUMMARY"

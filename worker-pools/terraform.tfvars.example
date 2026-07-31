@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars only if you need to override the defaults. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# Every bootstrap root's elevated_worker_pool_name must match this.
+# name = "elevated-engines"
+
+# Must be reachable from every elevated stack's Space: the pool's own Space, or an ancestor the
+# stack's Space inherits entities from. A Space with inherit_entities = false needs its own pool.
+# space_id = "root"

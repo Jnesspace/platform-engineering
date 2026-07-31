@@ -3,19 +3,49 @@
 inputs:
   - id: app_name
     name: App name
-    description: Lowercase letters/digits/hyphens; prefixes the resource.
+    description: Prefixes the resource. Must satisfy app-factory's name gate, which is the intersection of the S3/RDS/Secrets Manager rules.
     type: short_text
+    validations:
+      required: true
+      min_length: 3
+      max_length: 30
+      pattern: "^[a-z0-9]([a-z0-9]|-[a-z0-9])*$"
   - id: team
     name: Owning team
+    description: "Recorded on the stack as a team: label — the audit trail for who ordered this."
     type: short_text
+    validations:
+      required: true
+      min_length: 2
+      max_length: 40
+      pattern: "^[a-z0-9]([a-z0-9]|-[a-z0-9])*$"
   - id: aws_integration_id
     name: AWS integration ID
+    description: Spacelift AWS integration used to deploy. No default — an account-specific ID must not live in git.
     type: short_text
-    default: "01JV4YKENC7KXV3MNBYPSH88AX"
+    validations:
+      required: true
+      pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+  - id: worker_pool_id
+    name: Private worker pool ID
+    description: This stack gets write AWS credentials and mints an IAM role, so it must not share workers with co-tenant runs. See worker-pools/.
+    type: short_text
+    validations:
+      required: true
+      pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
   - id: space_id
     name: Space
+    description: Space the new stack lands in. Must reach the AWS integration, the worker pool, and bootstrap/governance's policy set.
     type: short_text
     default: root
+  - id: environment
+    name: Environment lane
+    description: Becomes the Environment tag on every vended resource. `prod` is deliberately not offered — a form-created stack may not claim the prod lane, which is provisioned through bootstrap/environments and the promotion branches.
+    type: select
+    options:
+      - dev
+      - stage
+    default: dev
   - id: region
     name: AWS region
     type: select
@@ -30,11 +60,19 @@ stack:
   name: db-${{ inputs.app_name }}
   space: ${{ inputs.space_id }}
   description: Postgres database for ${{ inputs.app_name }}, via Blueprint by ${{ inputs.team }}.
+  # `elevated` is what bootstrap/governance's audit keys off: it asserts this stack has a
+  # private pool, deletion protection, and policy reach. A form-created stack that mints an
+  # IAM role is elevated whether or not it feels like it.
   labels:
     - blueprint
     - database
+    - elevated
+    - team:${{ inputs.team }}
   administrative: false
   auto_deploy: false
+  protect_from_deletion: true
+  secret_masking_enabled: true
+  worker_pool: ${{ inputs.worker_pool_id }}
   vcs:
     provider: GITHUB
     repository: platform-engineering
@@ -54,6 +92,16 @@ stack:
     variables:
       - name: TF_VAR_shopping_list_yaml
         value: '{ name: "${{ inputs.app_name }}", cloud: aws, resources: { database: [{ name: app }] } }'
+      # No Kubernetes in the form path, so the app role trusts EC2. app-factory fails the
+      # plan rather than minting a role no workload can assume.
+      - name: TF_VAR_trust_mode
+        value: ec2
+      # Environment and Owner are two of the three tags enforce-required-tags.rego requires;
+      # app-factory derives Project from the app name.
+      - name: TF_VAR_environment
+        value: ${{ inputs.environment }}
+      - name: TF_VAR_owner
+        value: ${{ inputs.team }}
       - name: TF_VAR_region
         value: ${{ inputs.region }}
       - name: AWS_DEFAULT_REGION

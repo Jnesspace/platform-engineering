@@ -1,0 +1,165 @@
+name: terraform
+
+# pull_request, never pull_request_target. pull_request runs the *fork's* code
+# with a read-only token and no access to repo secrets, which is the only safe
+# way to check an untrusted contribution. pull_request_target would run our
+# workflow definition against their tree with a writable token — the exact
+# escalation this repo exists to prevent.
+on:
+  pull_request:
+  push:
+    branches: [main, stage, dev]
+  workflow_dispatch:
+
+# Read-only by default, at the top level, so a job that needs more has to say so
+# and a reviewer can see it in the diff. Nothing in this workflow needs more.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Superseded PR runs are waste. Pushes to a tracked branch are not: main,
+  # stage and dev are what the elevated Spacelift stacks execute, so their
+  # verification result must not be thrown away half-finished.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned, and pinned to what the Spacelift stacks actually run (terraform_version = "1.5.7"
+  # in bootstrap/ and patterns/): validating against a newer CLI than the runtime would wave
+  # through syntax the apply then chokes on.
+  TERRAFORM_VERSION: 1.5.7
+  TFLINT_VERSION: 0.64.0
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false  # nothing here talks to git; don't leave a token in .git/config
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false  # the wrapper rewrites stdout; we want raw diffs
+      - run: terraform fmt -check -recursive -diff .
+
+  # The matrix is computed, not written down. Four people add Terraform roots to
+  # this repo; a hardcoded list rots into "that root is no longer checked", and
+  # unchecked code on a branch a Space-admin stack executes is the whole threat
+  # model. See .github/scripts/tf-discover.sh.
+  discover:
+    name: discover
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.d.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
+      - id: d
+        run: |
+          matrix="$(./.github/scripts/tf-discover.sh --matrix)"
+          # An empty matrix would silently skip the validate job and leave the
+          # gate green, so treat "found nothing" as a discovery bug, not a pass.
+          if [ "$(printf '%s' "$matrix" | jq 'length')" -eq 0 ]; then
+            echo "::error::tf-discover found no Terraform directories"
+            exit 1
+          fi
+          printf '%s\n' "$matrix" | jq -r '.[] | "\(.group): \(.dirs)"'
+          echo "matrix=$matrix" >>"$GITHUB_OUTPUT"
+
+  validate:
+    name: validate (${{ matrix.group }})
+    needs: discover
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false  # one broken root should not hide the state of the other 44
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      # Group members share providers by construction (the shards are cloud
+      # subtrees), so one cache per group turns eight AWS provider downloads
+      # into one.
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809  # v4.2.4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: tf-${{ env.TERRAFORM_VERSION }}-${{ matrix.group }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: tf-${{ env.TERRAFORM_VERSION }}-${{ matrix.group }}-
+      - name: init + validate
+        env:
+          DIRS: ${{ matrix.dirs }}
+        # DIRS via env, not inline ${{ }}: interpolating job data straight into a
+        # run block is how workflows get command-injected. It is safe here (the
+        # values come from our own discovery script) but the habit is the point.
+        run: |
+          # shellcheck disable=SC2086 # word splitting is how the dir list is passed
+          ./.github/scripts/tf-validate.sh $DIRS
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a  # v6.3.0
+        with:
+          tflint_version: v${{ env.TFLINT_VERSION }}
+          # A pinned version still downloads a tarball, so pin its hash too.
+          # Otherwise the supply chain just moves from the action to the release
+          # asset, which is mutable in ways a git tag is not. Both linux arches
+          # so switching the runner to ubuntu-*-arm does not silently drop the
+          # verification.
+          checksums: |
+            cca9d13e2e1d7a2c627af60ff899a3c9b74212899416aeb96ec764d2ef954537
+            560da89aacf59389d4eb029730dd5b109b7288096c32f2726a0d9e783a5ea8eb
+          cache: true
+      - name: tflint --init
+        env:
+          # Ruleset plugins come from the GitHub API; the ambient job token only
+          # lifts the anonymous rate limit. No configured secret is involved, so
+          # this still works on a fork PR.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: tflint --init
+      # Same script pre-commit runs on push, so a clean local run means a clean
+      # check rather than a different tool with similar opinions.
+      - name: tflint
+        run: ./.github/scripts/tflint-all.sh
+
+  # The single required status check for this workflow. The validate matrix is
+  # generated, so its check names change the moment someone adds a root: if an
+  # operator marked "validate (modules/aws)" required, a new modules/oci shard
+  # would produce a check nobody required and could merge unverified. This job's
+  # name is fixed and it cannot pass unless every upstream job did.
+  terraform-gate:
+    name: terraform-gate
+    needs: [fmt, discover, validate, tflint]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: assert all upstream jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "upstream: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "::error::terraform gate failed ($r)"; exit 1; }
+          done

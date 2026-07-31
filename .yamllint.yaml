@@ -1,0 +1,45 @@
+# YAML in this repo is not decoration: blueprints/*.yaml become Spacelift
+# Blueprints and examples/*/platform.yaml is the shopping list an engine reads.
+# A malformed one fails at run time, in an elevated stack, instead of in review
+# — so it gets linted here.
+#
+# Relaxed on layout, strict on the things that change meaning. Line length and
+# indentation preferences are opinions; a duplicate key silently discarding the
+# first value is a bug.
+
+extends: default
+
+ignore: |
+  .terraform/
+  bakes/
+  fast.yaml
+
+rules:
+  # Formatting opinions, off. A linter that argues about cosmetics gets disabled,
+  # and then the duplicate-key check goes with it.
+  line-length: disable
+  comments-indentation: disable
+  document-start: disable
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent
+  braces: disable
+  brackets: disable
+
+  # Meaning-changing defects, error.
+  key-duplicates: enable
+  trailing-spaces: enable
+  new-line-at-end-of-file: enable
+  # empty-values stays off because `pull_request:` and `workflow_dispatch:` with
+  # no body are the idiomatic way to write a workflow trigger, and a rule that
+  # every correct workflow violates is a rule that gets the whole file disabled.
+  empty-values: disable
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  # GitHub Actions' `on:` key is the canonical reason this rule exists, and the
+  # canonical reason to switch it off: YAML 1.1 reads a bare `on` as boolean
+  # true, and every workflow in the world writes it anyway.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false

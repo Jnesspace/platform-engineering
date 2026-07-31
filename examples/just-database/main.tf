@@ -22,7 +22,10 @@ output "endpoint" {
   value = module.db.endpoint
 }
 
-# host/port/database/secret_ref — credentials live in Secrets Manager.
+# host/port/database/secret_ref — credentials live in Secrets Manager, never here.
+# Marked sensitive even though today it carries no password: an unmarked consumer
+# is a latch that stops the module ever tightening its own `access` output.
 output "connection" {
-  value = module.db.access
+  value     = module.db.access
+  sensitive = true
 }

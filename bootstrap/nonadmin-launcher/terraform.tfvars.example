@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in. *.tfvars is gitignored (only *.tfvars.example is tracked), so the
+# filled-in copy stays local — but it holds account identifiers, so treat it as a secret.
+
+# Bare repository name, via the default VCS (GitHub App) integration.
+repository = "platform-engineering"
+
+# The team being onboarded. Becomes the team Space name and its resource slugs.
+team_name = "cpe-team1"
+
+# The engine executes this branch WITH Space-admin. Branch-protect it (hardening item 1).
+# branch = "main"
+
+# Must match worker-pools/ var.name.
+# elevated_worker_pool_name = "elevated-engines"
+
+# Governance plane inherits root entities so the engine can see the private worker pool and the
+# root-published policy set. Set false only if you also give this Space its own pool and policy set.
+# platform_space_inherit_entities = true
+
+# Team plane stays isolated. Reach it by adding team_space_id to bootstrap/governance policy_spaces.
+# team_space_inherit_entities = false

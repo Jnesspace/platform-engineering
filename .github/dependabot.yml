@@ -1,0 +1,50 @@
+version: 2
+
+# SHA-pinning actions without an update mechanism is just a stale pin: it stops
+# a tag being moved under us, and also stops us getting the fix when one of these
+# actions has a vulnerability. Dependabot understands SHA pins with a trailing
+# `# vX.Y.Z` comment and bumps both together, which is the other reason
+# check-action-pins.sh insists on that comment.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [ci, supply-chain]
+    commit-message:
+      prefix: 'ci(deps)'
+
+  # checkov, pinned in .github/requirements-ci.txt.
+  - package-ecosystem: pip
+    directory: /.github
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels: [ci, supply-chain]
+    commit-message:
+      prefix: 'ci(deps)'
+
+  # Terraform provider constraints. Grouped into one PR: 12 modules across three
+  # clouds produce a dozen separate bumps otherwise, and a dozen ignored PRs is
+  # worse than none.
+  - package-ecosystem: terraform
+    directories:
+      - /**
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    labels: [terraform, dependencies]
+    groups:
+      providers:
+        patterns: ['*']
+    commit-message:
+      prefix: 'deps'
+
+# Not covered by Dependabot, so they are bumped by hand — the version and the
+# sha256 live together and must move together:
+#   gitleaks, actionlint  -> .github/scripts/install-pinned.sh
+#   tflint + rulesets     -> .github/workflows/terraform.yml, .tflint.hcl
+#   terraform, opa, trivy -> the env: block of the workflow that uses them

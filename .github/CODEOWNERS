@@ -1,0 +1,91 @@
+# CODEOWNERS — hardening-backlog item 1, the GitHub half.
+#
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │ OWNER IS @Jnesspace, and that is a known limitation, not the target.     │
+# │                                                                          │
+# │ `Jnesspace` is a GitHub *user*, not an organisation (verified via the     │
+# │ API). Team handles like @Jnesspace/platform-team only resolve inside an   │
+# │ organisation, so a team handle here resolves to nothing — and GitHub      │
+# │ treats an unresolvable owner as *no owner*, which makes "Require review   │
+# │ from Code Owners" silently pass. That fails open, so this file names the  │
+# │ user directly instead.                                                   │
+# │                                                                          │
+# │ Consequence: this file cannot deliver separation of duties today.         │
+# │ That control needs two humans — a sole maintainer cannot approve their    │
+# │ own PR, so requiring code-owner review in a single-maintainer repo        │
+# │ deadlocks every merge instead of gating it.                              │
+# │                                                                          │
+# │ Target state: move this repo into an organisation, create a real          │
+# │ platform team with write access, swap @Jnesspace for @<org>/platform-team │
+# │ below, and only then enable "Require review from Code Owners".            │
+# │ Until then, enable the solo-safe rules in .github/BRANCH_PROTECTION.md    │
+# │ (required status checks, no force-push, linear history) — those are real  │
+# │ enforcement that does not need a second reviewer.                        │
+# │                                                                          │
+# │ Verify owners resolve: gh api repos/Jnesspace/platform-engineering/\      │
+# │   codeowners/errors   → must return []                                    │
+# └──────────────────────────────────────────────────────────────────────────┘
+#
+# Why this file is the highest-value control in the repo: the elevated engine
+# stacks (iam-factory, nonadmin-launcher, app-factory) execute whatever is on
+# their tracked branch, holding Space-admin. There is no gate between "merged"
+# and "run with elevated credentials", so the review gate *is* the privilege
+# boundary. An unreviewed merge is a privilege escalation.
+#
+# CODEOWNERS alone enforces nothing. It only takes effect with branch protection
+# requiring code-owner review — see .github/BRANCH_PROTECTION.md.
+#
+# Last matching pattern wins, so this file reads general → specific.
+
+# Default owner. This is a platform-team repo end to end; product teams consume
+# it from their own repos and never commit here.
+*                       @Jnesspace
+
+# ---------------------------------------------------------------------------
+# The lines below are deliberately redundant against the `*` default. They exist
+# so that narrowing the default later cannot silently un-own a privilege-bearing
+# path — the dangerous version of this file is the one where someone adds
+# `/modules/ @app-teams` and nobody notices bootstrap/ lost its owner too.
+# ---------------------------------------------------------------------------
+
+# The only place privilege elevation is created: Spaces, the privileged stacks,
+# and the role bindings that make them privileged.
+/bootstrap/             @Jnesspace
+
+# The code that runs *inside* those elevated stacks. Editing patterns/ is
+# equivalent to editing what a Space-admin token executes.
+/patterns/              @Jnesspace
+
+# The server-side gates. Weakening a Rego rule is indistinguishable from
+# removing the gate, and it does not look like a privileged change in a diff.
+/policies/              @Jnesspace
+
+# RBAC as code — who can trigger, confirm, and read.
+/roles/                 @Jnesspace
+
+# Where the elevated tokens actually run. Moving an engine onto a shared pool
+# widens the token-theft surface without touching any policy.
+/worker-pools/          @Jnesspace
+
+# Scheduled runs and tasks execute with the stack's credentials on a timer, with
+# no human present. A scheduled task is a remote shell that fires at 3am.
+/schedules/             @Jnesspace
+
+# Blueprints create stacks. A blueprint that targets a privileged Space vends
+# privilege through the self-service form.
+/blueprints/            @Jnesspace
+/bootstrap/blueprints/  @Jnesspace
+
+# CI is privilege-bearing too. Whoever can edit a workflow can run code in this
+# repo's context, and — once any workflow holds a write permission — can often
+# escalate from there. Same protection as bootstrap/.
+/.github/               @Jnesspace
+
+# The verification config. Relaxing a scanner rule deletes a check while looking
+# like a lint tweak, and .gitignore is how a file stops being reviewed at all.
+/.tflint.hcl            @Jnesspace
+/.checkov.yaml          @Jnesspace
+/.gitleaks.toml         @Jnesspace
+/.yamllint.yaml         @Jnesspace
+/.pre-commit-config.yaml @Jnesspace
+/.gitignore             @Jnesspace

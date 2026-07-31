@@ -20,5 +20,7 @@ output "access" {
     url      = google_storage_bucket.this.url
     role     = "roles/storage.objectAdmin"
     resource = "projects/_/buckets/${google_storage_bucket.this.name}"
+    # An app on a CMEK bucket also needs roles/cloudkms.cryptoKeyEncrypterDecrypter on this key.
+    kms_key_name = var.kms_key_name
   }
 }

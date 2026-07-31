@@ -1,0 +1,14 @@
+# Top-level CI tooling pins. requirements-ci.txt is compiled from this file —
+# edit versions HERE, then regenerate with the command in requirements-ci.txt's
+# header. One .in file so there is one place to bump.
+#
+# Exact ==, never >=: a scanner that changes its ruleset without a commit here
+# turns CI into a moving target, and "CI went red and nobody changed anything"
+# is how a suite loses its authority.
+checkov==3.3.8
+
+# yamllint and shellcheck come from pip rather than the runner image so they are
+# the same versions .pre-commit-config.yaml installs. The runner image ships
+# shellcheck, but its version moves when the image does.
+yamllint==1.38.0
+shellcheck-py==0.10.0.1

@@ -14,24 +14,36 @@ output "endpoint" {
 }
 
 output "access" {
-  description = "How to reach this resource (uniform shape across primitives)."
+  description = "How to reach this resource (uniform shape across primitives). References only — the value is never an output."
   value = {
-    secret_ref = aws_secretsmanager_secret.this.arn
-    name       = aws_secretsmanager_secret.this.name
+    secret_ref  = aws_secretsmanager_secret.this.arn
+    name        = aws_secretsmanager_secret.this.name
+    kms_key_arn = var.kms_key_arn
   }
 }
 
 output "iam_policy_json" {
-  description = "Least-privilege IAM policy: GetSecretValue + DescribeSecret on this secret only."
+  description = "Least-privilege IAM policy: GetSecretValue + DescribeSecret on this secret only, plus kms:Decrypt on the CMK when one encrypts it."
   value = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "ReadThisSecret"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-        Resource = aws_secretsmanager_secret.this.arn
-      },
-    ]
+    Statement = concat(
+      [
+        {
+          Sid      = "ReadThisSecret"
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+          Resource = aws_secretsmanager_secret.this.arn
+        },
+      ],
+      # A CMK-encrypted secret is unreadable without Decrypt on the key, however wide the Secrets Manager grant.
+      local.use_cmk ? [
+        {
+          Sid      = "DecryptThisSecret"
+          Effect   = "Allow"
+          Action   = ["kms:Decrypt", "kms:DescribeKey"]
+          Resource = var.kms_key_arn
+        },
+      ] : [],
+    )
   })
 }

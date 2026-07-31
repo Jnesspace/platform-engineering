@@ -1,16 +1,17 @@
 # Demo script — governed self-service on Spacelift
 
-A presenter's runbook for the two patterns in this repo. Everything below is
-**live** in the `jnesspace` account, tracking `platform-engineering` @ `main`.
+A presenter's runbook for the two patterns in this repo, running against your own
+Spacelift account and tracking `platform-engineering` @ `main`.
 Time: ~10 min full, ~3 min short.
 
 **The one-sentence story:** product teams get real provisioning power — Spaces,
 scoped cloud roles, app stacks — through narrow, audited, git-driven entry
 points, and *no product-team user ever holds Space Admin or a cloud credential*.
 
-Live links:
+Live links (substitute your own — account identifiers are deliberately not
+committed, see `bootstrap/*/terraform.tfvars.example`):
 - Repo: https://github.com/Jnesspace/platform-engineering
-- Spacelift: https://jnesspace.app.spacelift.io
+- Spacelift: `https://<your-subdomain>.app.spacelift.io`
 - Stacks: `iam-factory`, `payments-app`, `onboarding-engine`, `app-stack-1/2`
 
 ```mermaid
@@ -68,7 +69,7 @@ Trigger `iam-factory` (UI: **Trigger**, or `spacectl stack deploy --id iam-facto
 Open the `payments-app` stack (in the `payments` Space, label `aws-oidc`) → its
 last run output:
 ```
-assumed_identity = arn:aws:sts::025897764856:assumed-role/spacelift-payments/…
+assumed_identity = arn:aws:sts::<account-id>:assumed-role/spacelift-payments/…
 ```
 **Say:** "A stack in the payments Space assumed *its* role via OIDC — no static
 keys — and can do only what the catalog allowed. Because trust is pinned to the
@@ -88,9 +89,13 @@ the system **Space admin** role to the **engine stack**, scoped to the team Spac
 once by an admin. No user has it."
 
 ### 2. Show what a product-team user gets
-The `cpe-team-consumer` role = `SPACE_READ` + `RUN_TRIGGER` (+ `RUN_CONFIRM`),
-attached **stack-scoped to the engine only**. **Say:** "No `SPACE_ADMIN`, no
-`STACK_UPDATE` — they can't edit the `env:*` labels our policies depend on."
+`roles/` → `requester` = `SPACE_READ` + `RUN_TRIGGER`, and `approver` =
+`SPACE_READ` + `RUN_CONFIRM` — **two different roles, bound to two different IdP
+groups**, with a plan-time gate that fails if one group holds both. **Say:** "No
+`SPACE_ADMIN`, no `STACK_UPDATE` — they can't edit the `env:*` labels our policies
+depend on. And whoever triggers a run cannot be the one who confirms it: the
+combined `consumer` role that made self-approval possible is gone, and the
+APPROVAL policy enforces the same split server-side."
 
 ### 3. Show the git-tracked shopping list
 Open `patterns/nonadmin-launcher/engine/requests/` — one YAML per app stack
@@ -130,5 +135,12 @@ See `patterns/nonadmin-launcher/README.md`.
 
 - **iam-factory:** the `payments`/`analytics` Spaces + roles persist. To re-show
   the gate, add/remove a `broken.yaml` on a branch. To re-vend, just re-trigger.
-- **Not production-safe yet:** see `docs/hardening-backlog.md` (branch protection,
-  approval/plan policies, private worker pool) — call this out as the roadmap.
+- **What to say about production-readiness:** the guardrails are now built and
+  verified — PLAN/APPROVAL/GIT_PUSH policies published and auto-attached by
+  `bootstrap/governance`, elevated stacks pinned to a private worker pool, and
+  self-approval broken by splitting `requester` from `approver`. Two items are
+  genuinely still open, and they are the honest ones to name: **GitHub branch
+  protection has to be applied by a human**, and **vended-Space inheritance**
+  (`inherit_entities`) cannot be tightened without moving the AWS integration out
+  of `root` — which is itself a nice proof that the factory cannot loosen the
+  hierarchy it provisions into. See `docs/hardening-backlog.md`.

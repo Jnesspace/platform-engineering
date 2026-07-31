@@ -1,18 +1,41 @@
 # The shopping list: everything jimmy-app needs from the platform, in one file
 # the developer owns. Consumed by patterns/app-factory (rung 4 — converged
 # onboarding). Keys under `resources:` map 1:1 to modules/<cloud>/<primitive>.
+#
+# Per-entry options are strengthening or neutral only: a CMK, rotation, a
+# standby. Anything that WEAKENS a default — force_destroy, deletion_protection,
+# skip_final_snapshot, a short secret recovery window — is a stack variable the
+# platform sets, and app-factory fails the plan if it appears here. See
+# patterns/app-factory/README.md.
 name: jimmy-app
 cloud: aws
+# Owning team. Becomes the Owner tag, which policies/plan/enforce-required-tags.rego
+# requires on every resource; TF_VAR_owner on the stack overrides it. The
+# Environment tag is NOT here — it follows the stack's env: lane (TF_VAR_environment),
+# because env:* is a privilege claim, not a team's to make.
+owner: jimmy-team
 resources:
   object_storage:
     - name: uploads
+      # Encrypt with a platform CMK instead of the AWS-managed S3 key. The ARN
+      # must be one the platform published in var.allowed_kms_key_arns — the
+      # plan fails otherwise, rather than quietly using a key we don't control.
+      # The app role picks up kms:Decrypt/GenerateDataKey/DescribeKey on it
+      # automatically.
+      # kms_key_arn: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
   secrets:
     - name: app-secrets
+      # Regenerate the value every N days (0, the default, means no rotation).
+      # rotation_days: 30
+      # kms_key_arn: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
   # database and compute are supported too (modules/<cloud>/{database,compute}).
   # Omitted from the live demo so the run stays to fast, ~free resources
   # (S3 + Secrets Manager + IAM); RDS/EC2 cost money and take minutes to create.
   # database:
   #   - name: app
-  #     engine: postgres   # the database module is postgres-only
+  #     engine: postgres   # checked, not decorative: the module is postgres-only
+  #     multi_az: true     # synchronous standby; roughly doubles the instance cost
+  #     kms_key_arn: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
   # compute:
   #   - name: worker
+  #     kms_key_arn: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab

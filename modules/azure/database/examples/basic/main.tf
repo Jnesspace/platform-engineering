@@ -4,7 +4,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = ">= 3.116.0, < 4.0.0"
     }
   }
 }
@@ -17,6 +17,9 @@ module "database" {
   source = "../.."
 
   name = "demo-app"
+
+  # The module refuses a public-endpoint server with no firewall rule at all.
+  allowed_cidr_blocks = [{ name = "office", cidr = "203.0.113.0/24" }]
 }
 
 output "id" {

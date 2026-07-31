@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in. Nothing here is required — with no
+# anthropic_api_key the context deploys inert and the agent logs a skip.
+
+space_id = "root"
+
+# Anthropic API key. Stored as a write-only context variable.
+# anthropic_api_key = "sk-ant-..."
+
+# model          = "claude-sonnet-4-5"
+# run_types      = ["PROPOSED"]        # PR runs only; add "TRACKED" or use ["ALL"]
+# fail_on        = "never"             # never | findings | error
+# max_plan_bytes = 200000
+# api_base_url   = "https://api.anthropic.com"
+
+# Optional deployment spec the plan is verified against:
+# spec = "All S3 buckets must be encrypted and tagged owner+project. No 0.0.0.0/0 ingress."
+# ...or point at a file in each stack's repo:
+# spec_file = "docs/deploy-spec.md"

@@ -7,6 +7,11 @@ variable "space" {
   type        = string
   default     = "root"
   description = "Space the blueprint catalog is published in (controls who sees it)."
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$", var.space))
+    error_message = "space must be a Space ID (slug), e.g. \"root\"."
+  }
 }
 
 locals {
@@ -31,5 +36,6 @@ resource "spacelift_blueprint" "catalog" {
 }
 
 output "published" {
-  value = { for k, b in spacelift_blueprint.catalog : k => b.id }
+  value       = { for k, b in spacelift_blueprint.catalog : k => b.id }
+  description = "Catalog key => blueprint ID."
 }
