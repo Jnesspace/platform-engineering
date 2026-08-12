@@ -404,7 +404,8 @@ check "demo_teardown_weakens_posture" {
 }
 
 module "object_storage" {
-  source   = "../../modules/aws/object-storage"
+  source   = "spacelift.io/jnesspace/object-storage/aws"
+  version  = "1.0.0"
   for_each = local.object_storage
 
   name = "${local.app_name}-${each.key}"
@@ -419,7 +420,8 @@ module "object_storage" {
 }
 
 module "secrets" {
-  source   = "../../modules/aws/secrets"
+  source   = "spacelift.io/jnesspace/secrets/aws"
+  version  = "1.0.0"
   for_each = local.secrets
 
   name = "${local.app_name}-${each.key}"
