@@ -4,7 +4,20 @@
 # defined here; anything else fails the factory run at plan time. Adding or
 # expanding a set is a platform-reviewed change to THIS file.
 #
-# Schema: <set-name>: [<IAM action>, ...]
+# Two layers read this file: the plan-time gate (a service may only name sets
+# defined here) and the permissions boundary, whose allowlist is derived from
+# the AWS services these actions touch. So widening a set widens the boundary by
+# exactly that much and no more.
+#
+# Schema, either form:
+#   <set-name>: [<IAM action>, ...]                     # grants on Resource "*"
+#   <set-name>:
+#     actions:   [<IAM action>, ...]
+#     resources: [<ARN pattern>, ...]                   # resource-scoped set
+#
+# Escalation-class actions (iam:*, sts:AssumeRole*, organizations:*, account:*,
+# sso*, identitystore:*, bare "*") are rejected at plan time — see
+# var.forbidden_catalog_action_prefixes.
 readonly:
   - ec2:Describe*
   - s3:Get*

@@ -1,5 +1,15 @@
 # Reference-only consuming stack: it must carry the `aws-oidc` label or the factory's auto-attached context never injects TF_VAR_aws_role_arn.
 
+# Pinned to the same major as the factory: with no lock file committed, an unbounded root would float to the next major on its next init.
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 variable "aws_role_arn" {
   type        = string
   description = "Injected by the factory's auto-attached context (requires the `aws-oidc` stack label)."

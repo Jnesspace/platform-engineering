@@ -1,4 +1,4 @@
-# Reusable custom roles: the requester/approver split from docs/hardening-backlog.md item 2.
+# Reusable custom roles: requester and approver are split so nobody can confirm their own run.
 
 # Can trigger runs but not confirm them — the confirm gate belongs to someone else.
 resource "spacelift_role" "requester" {

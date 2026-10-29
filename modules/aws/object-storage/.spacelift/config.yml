@@ -1,0 +1,9 @@
+# Module version counter. Spacelift cuts a new registry version on every tracked
+# push that touches this project root, reading the number from here — which is
+# why a monorepo works: each module carries its own independent counter.
+#
+# No `tests:` block yet. Without test cases a version is marked green as soon as
+# it builds; adding tests here later is what turns the registry page into a
+# quality gate rather than just a catalogue.
+version: 1
+module_version: 1.0.1

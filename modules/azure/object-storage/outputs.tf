@@ -9,12 +9,12 @@ output "name" {
 }
 
 output "endpoint" {
-  description = "Primary blob service endpoint."
+  description = "Primary blob service endpoint (HTTPS only)."
   value       = azurerm_storage_account.this.primary_blob_endpoint
 }
 
 output "access" {
-  description = "How an app reaches this resource: container + endpoint, and the RBAC role/scope to assign."
+  description = "How an app reaches this resource: container + endpoint, and the RBAC role/scope to assign. No account key here — bind the role to a managed identity instead."
   value = {
     account       = azurerm_storage_account.this.name
     container     = azurerm_storage_container.this.name

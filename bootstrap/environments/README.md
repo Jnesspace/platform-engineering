@@ -42,7 +42,5 @@ collision-safe even on the shared demo account.
 
 ## Scope
 
-This stands up app-factory per env. The same `env/` module pattern extends to
-iam-factory / onboarding-engine — but those own global resources (the OIDC
-provider, the boundary policy), so they specifically need per-env accounts or
-env-suffixed global names.
+This stands up app-factory per env. Anything that owns account-global resources
+needs per-env accounts or env-suffixed global names to follow the same pattern.
